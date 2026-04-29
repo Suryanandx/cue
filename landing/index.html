@@ -441,6 +441,177 @@
     .cli-block .s { color: #f3b97a; }
     .cli-block .c { color: var(--text-mute); }
 
+    /* PRODUCT HUNT BANNER */
+    .ph-banner {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 14px 8px 10px;
+      margin-bottom: 36px;
+      background: rgba(218, 85, 47, 0.08);
+      border: 1px solid rgba(218, 85, 47, 0.32);
+      border-radius: 99px;
+      font-family: var(--mono);
+      transition: background 0.18s, transform 0.12s, border-color 0.18s;
+    }
+    .ph-banner:hover {
+      background: rgba(218, 85, 47, 0.14);
+      border-color: rgba(218, 85, 47, 0.55);
+      transform: translateY(-1px);
+    }
+    .ph-logo { display: inline-flex; align-items: center; flex-shrink: 0; }
+    .ph-text { display: flex; flex-direction: column; line-height: 1.05; }
+    .ph-line-1 {
+      font-size: 8.5px;
+      letter-spacing: 0.2em;
+      color: #DA552F;
+      font-weight: 600;
+    }
+    .ph-line-2 {
+      font-size: 13px;
+      color: var(--text);
+      font-weight: 600;
+      letter-spacing: -0.005em;
+      margin-top: 1px;
+    }
+    .ph-arrow {
+      color: #DA552F;
+      font-size: 14px;
+      transition: transform 0.18s;
+    }
+    .ph-banner:hover .ph-arrow { transform: translateX(3px); }
+
+    /* HERO SHOT — real screenshot replacing the faux terminal */
+    .hero-shot { max-width: 980px; margin-top: 8px; }
+    .hero-shot-frame {
+      position: relative;
+      border: 1px solid var(--line-bright);
+      background: var(--panel);
+      box-shadow:
+        0 32px 80px rgba(0, 0, 0, 0.55),
+        0 0 0 1px var(--bg) inset,
+        0 0 100px rgba(0, 255, 140, 0.05);
+      overflow: hidden;
+    }
+    .hero-shot-frame::before {
+      content: "";
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse at top, rgba(0, 255, 140, 0.06), transparent 60%);
+      pointer-events: none;
+      z-index: 1;
+    }
+    .hero-shot-frame img { display: block; width: 100%; height: auto; }
+    .hero-shot-meta {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
+    .hero-shot-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 4px 10px;
+      border: 1px solid var(--phos-deep);
+      border-radius: 99px;
+      font-family: var(--mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      color: var(--phos);
+    }
+    .hero-shot-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--phos);
+      box-shadow: 0 0 8px var(--phos);
+      animation: pulse 1.6s ease-in-out infinite;
+    }
+    .hero-shot-cap {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-mute);
+      letter-spacing: 0.04em;
+      flex: 1;
+      min-width: 0;
+    }
+
+    /* GALLERY — INSIDE section */
+    .gallery {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 24px;
+    }
+    @media (max-width: 720px) { .gallery { grid-template-columns: 1fr; gap: 18px; } }
+    .gallery .shot-wide { grid-column: 1 / -1; }
+    .shot {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      margin: 0;
+    }
+    .shot-frame {
+      position: relative;
+      background: var(--panel);
+      border: 1px solid var(--line-bright);
+      overflow: hidden;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+      transition: border-color 0.18s, transform 0.18s;
+    }
+    .shot:hover .shot-frame {
+      border-color: var(--phos-deep);
+      transform: translateY(-2px);
+    }
+    .shot-frame::after {
+      content: "";
+      position: absolute; inset: 0;
+      pointer-events: none;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+    }
+    .shot-frame img { display: block; width: 100%; height: auto; }
+    .shot figcaption {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 0 4px;
+    }
+    .shot-tag {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      color: var(--phos);
+      font-weight: 500;
+    }
+    .shot-cap {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text-dim);
+      line-height: 1.55;
+    }
+
+    /* ONBOARDING STRIP — three vertical mobile-shaped shots */
+    .onboard-strip {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+    @media (max-width: 880px) { .onboard-strip { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 540px) { .onboard-strip { grid-template-columns: 1fr; } }
+    .shot-vertical .shot-frame {
+      aspect-ratio: 9 / 12;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(180deg, var(--panel), var(--bg));
+    }
+    .shot-vertical .shot-frame img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center;
+    }
+
     /* HERO CONSOLE — fake terminal session as visual centerpiece */
     .console {
       border: 1px solid var(--line-bright);
@@ -896,7 +1067,7 @@
     </a>
     <nav class="bar-nav">
       <a href="#download">Download</a>
-      <a href="#features">Features</a>
+      <a href="#inside">Inside</a>
       <a href="#agents">Agents</a>
       <a href="#api">API</a>
       <a href="https://github.com/Suryanandx/cue" target="_blank" rel="noopener" class="cta">[ Source ↗ ]</a>
@@ -924,6 +1095,21 @@
       <span class="tag">macos · windows soon</span>
     </div>
 
+    <a class="ph-banner" href="https://www.producthunt.com/products/cue-15" target="_blank" rel="noopener">
+      <span class="ph-logo" aria-hidden="true">
+        <!-- Product Hunt cat-icon, rendered in PH orange -->
+        <svg width="20" height="20" viewBox="0 0 40 40" fill="none">
+          <circle cx="20" cy="20" r="20" fill="#DA552F"/>
+          <path d="M22.667 20H17v-6h5.667a3 3 0 0 1 0 6zM17 11.333v17.334h3.667V23h2a5.667 5.667 0 0 0 0-11.333H17z" fill="#fff"/>
+        </svg>
+      </span>
+      <span class="ph-text">
+        <span class="ph-line-1">COMING SOON ON</span>
+        <span class="ph-line-2">Product Hunt</span>
+      </span>
+      <span class="ph-arrow">→</span>
+    </a>
+
     <h1 class="lead">
       <span class="strike">cluely.</span> <span class="green">cue.</span><br>
       open-source meeting assistant<span class="cursor"></span>
@@ -949,27 +1135,15 @@
       </a>
     </div>
 
-    <!-- TERMINAL CONSOLE -->
-    <div class="console">
-      <div class="console-bar">
-        <span class="dot d-r"></span>
-        <span class="dot d-y"></span>
-        <span class="dot d-g"></span>
-        <span>cue · session · listening</span>
-        <span class="meta">openrouter:claude-3.5-sonnet · 84ms</span>
+    <!-- ACTUAL APP SCREENSHOT — Cluely-class compact widget -->
+    <div class="hero-shot">
+      <div class="hero-shot-frame">
+        <img src="screenshots/app-idle.png" alt="Cue overlay — idle, ready for a question" loading="eager" />
       </div>
-      <pre class="console-body"><span class="p">$</span> cue daemon start
-<span class="ok">✓</span> daemon up &nbsp;<span class="c">|</span>&nbsp; bind=127.0.0.1:7821 &nbsp;<span class="c">|</span>&nbsp; agents=5
-
-<span class="p">$</span> cue agent use interview-coding
-<span class="ok">✓</span> default agent <span class="c">→</span> interview-coding
-
-<span class="p">$</span> cue listen
-<span class="c">[ vad: silero-vad &nbsp;|&nbsp; stt: distil-whisper &nbsp;|&nbsp; tts: webspeech ]</span>
-<span class="c">▸ &nbsp;</span><span class="stream">interviewer:</span> "design a rate limiter for 1M qps"
-<span class="c">▸ &nbsp;</span><span class="ok">cue ⟶ </span> <span class="stream">restating: token-bucket vs sliding-window. clarify scope?</span>
-<span class="c">▸ &nbsp;</span><span class="ok">cue ⟶ </span> <span class="stream">brute force: O(n) per request, redis hash. optimal: ...</span>
-<span class="warn">█</span> streaming · 240 tokens · $0.003</pre>
+      <div class="hero-shot-meta">
+        <span class="hero-shot-pill"><span class="hero-shot-dot"></span>actual app · macOS overlay</span>
+        <span class="hero-shot-cap">Floating glass widget. Stealth on. Templates one keystroke away. Mode pill, agent pill, layout pill.</span>
+      </div>
     </div>
   </div>
 </section>
@@ -1206,11 +1380,163 @@
   </div>
 </section>
 
+<!-- INSIDE — actual app screenshots -->
+<section class="sec" id="inside">
+  <div class="frame">
+    <div class="sec-label">
+      <span><span class="num">SECTION 03 //</span> INSIDE</span>
+      <span class="rule"></span>
+    </div>
+
+    <h2 class="sec-title">
+      what it actually <span class="green">looks like.</span>
+    </h2>
+    <p class="sec-sub">
+      Real screenshots from the latest build. Glass overlay. Hot-swappable templates,
+      grouped Ollama + OpenRouter model picker, three-mode layout switcher, knowledge
+      pane, full session settings.
+    </p>
+
+    <div class="gallery">
+      <figure class="shot shot-wide">
+        <div class="shot-frame">
+          <img src="screenshots/app-idle.png" alt="Cue idle window with quick actions" loading="lazy" />
+        </div>
+        <figcaption>
+          <span class="shot-tag">// IDLE</span>
+          <span class="shot-cap">The compact widget. Mode pill on the left, model pill in the center, listen + stealth + settings on the right. Quick actions (Assist · Recap · Follow-up · Notes) one click away. ⌘ Enter from anywhere triggers it.</span>
+        </figcaption>
+      </figure>
+
+      <figure class="shot">
+        <div class="shot-frame">
+          <img src="screenshots/picker-templates.png" alt="Template picker with 10 agents" loading="lazy" />
+        </div>
+        <figcaption>
+          <span class="shot-tag">// TEMPLATES</span>
+          <span class="shot-cap">Auto, Coding, Meeting, Interview… ten built-in scenario templates. ⌘1–9 hot-swap. Per-agent default model shown on the right.</span>
+        </figcaption>
+      </figure>
+
+      <figure class="shot">
+        <div class="shot-frame">
+          <img src="screenshots/picker-models.png" alt="Model picker grouping OpenRouter + Ollama" loading="lazy" />
+        </div>
+        <figcaption>
+          <span class="shot-tag">// MODELS</span>
+          <span class="shot-cap">Both providers, side by side. OpenRouter (cloud) on top, Ollama (local) below. Search, click to switch. Free-tier models highlighted.</span>
+        </figcaption>
+      </figure>
+
+      <figure class="shot">
+        <div class="shot-frame">
+          <img src="screenshots/picker-layout.png" alt="Layout picker — Compact / Standard / Expanded" loading="lazy" />
+        </div>
+        <figcaption>
+          <span class="shot-tag">// LAYOUT</span>
+          <span class="shot-cap">Three sizes via popover or ⌘0/9/8. Compact (420×540) is the default widget. Expanded (920×720) opens everything.</span>
+        </figcaption>
+      </figure>
+
+      <figure class="shot">
+        <div class="shot-frame">
+          <img src="screenshots/popover-settings.png" alt="Per-session settings popover" loading="lazy" />
+        </div>
+        <figcaption>
+          <span class="shot-tag">// PER-SESSION SETTINGS</span>
+          <span class="shot-cap">Tone, context/playbook, memory, reasoning depth, model override. Set once per chat. The agent inherits the rest from its TOML file.</span>
+        </figcaption>
+      </figure>
+
+      <figure class="shot">
+        <div class="shot-frame">
+          <img src="screenshots/pane-knowledge.png" alt="Knowledge / playbook pane with drop zone" loading="lazy" />
+        </div>
+        <figcaption>
+          <span class="shot-tag">// PLAYBOOK</span>
+          <span class="shot-cap">Drop PDFs, DOCX, XLSX, CSV, TXT or images. Auto-injects relevant context into your next answer. Per-file errors shown inline with retry.</span>
+        </figcaption>
+      </figure>
+
+      <figure class="shot">
+        <div class="shot-frame">
+          <img src="screenshots/pane-models.png" alt="Local Ollama models pane with size warnings" loading="lazy" />
+        </div>
+        <figcaption>
+          <span class="shot-tag">// LOCAL MODELS</span>
+          <span class="shot-cap">Pull, manage, delete. Memory-aware warnings when a model is too large for your machine. Ships with sensible chip suggestions.</span>
+        </figcaption>
+      </figure>
+
+      <figure class="shot">
+        <div class="shot-frame">
+          <img src="screenshots/pane-resume.png" alt="Resume upload pane with Analyse + Practice" loading="lazy" />
+        </div>
+        <figcaption>
+          <span class="shot-tag">// RESUME</span>
+          <span class="shot-cap">Drop your CV. Auto-feeds into interview templates. One-click Analyse pulls strengths + gaps; Practice spawns a mock interviewer in the same window.</span>
+        </figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ONBOARDING — first-launch flow -->
+<section class="sec" id="onboarding">
+  <div class="frame">
+    <div class="sec-label">
+      <span><span class="num">SECTION 04 //</span> ONBOARDING</span>
+      <span class="rule"></span>
+    </div>
+
+    <h2 class="sec-title">
+      install &amp; <span class="green">go.</span><br>
+      <span class="dim">no account, no card.</span>
+    </h2>
+    <p class="sec-sub">
+      First launch shows a three-step wizard. Pick a provider, validate, you're in.
+      Everything else is configurable later from the settings popover.
+    </p>
+
+    <div class="onboard-strip">
+      <figure class="shot shot-vertical">
+        <div class="shot-frame">
+          <img src="screenshots/onboarding-welcome.png" alt="Onboarding welcome step" loading="lazy" />
+        </div>
+        <figcaption>
+          <span class="shot-tag">// 01 WELCOME</span>
+          <span class="shot-cap">Apache-2.0, stealth on, local first. Click "Connect a model" to pick your provider.</span>
+        </figcaption>
+      </figure>
+
+      <figure class="shot shot-vertical">
+        <div class="shot-frame">
+          <img src="screenshots/onboarding-providers.png" alt="Pick provider step — OpenRouter or Ollama" loading="lazy" />
+        </div>
+        <figcaption>
+          <span class="shot-tag">// 02 PROVIDER</span>
+          <span class="shot-cap">OpenRouter (cloud, 200+ models, best quality) or Ollama (local, free, private). You can pick both.</span>
+        </figcaption>
+      </figure>
+
+      <figure class="shot shot-vertical">
+        <div class="shot-frame">
+          <img src="screenshots/onboarding-ollama.png" alt="Ollama connection check showing live model list" loading="lazy" />
+        </div>
+        <figcaption>
+          <span class="shot-tag">// 03 CONNECT</span>
+          <span class="shot-cap">Live health-check against 127.0.0.1:11434. Shows installed models. Recheck button. Continue when green.</span>
+        </figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
 <!-- AGENTS -->
 <section class="sec" id="agents">
   <div class="frame">
     <div class="sec-label">
-      <span><span class="num">SECTION 03 //</span> AGENTS</span>
+      <span><span class="num">SECTION 05 //</span> AGENTS</span>
       <span class="rule"></span>
     </div>
 
@@ -1275,7 +1601,7 @@
 <section class="sec" id="install">
   <div class="frame">
     <div class="sec-label">
-      <span><span class="num">SECTION 04 //</span> DEPLOY</span>
+      <span><span class="num">SECTION 06 //</span> DEPLOY</span>
       <span class="rule"></span>
     </div>
 
@@ -1354,7 +1680,7 @@
 <section class="sec" id="api">
   <div class="frame">
     <div class="sec-label">
-      <span><span class="num">SECTION 05 //</span> ENDPOINT MAP</span>
+      <span><span class="num">SECTION 07 //</span> ENDPOINT MAP</span>
       <span class="rule"></span>
     </div>
 
@@ -1391,7 +1717,7 @@
 <section class="sec">
   <div class="frame">
     <div class="sec-label">
-      <span><span class="num">SECTION 06 //</span> CLI SURFACE</span>
+      <span><span class="num">SECTION 08 //</span> CLI SURFACE</span>
       <span class="rule"></span>
     </div>
 
@@ -1443,7 +1769,7 @@ cue stealth on / off<span class="c">                       &nbsp;screen-capture 
 <section class="sec" id="maker">
   <div class="frame">
     <div class="sec-label">
-      <span><span class="num">SECTION 07 //</span> MAKER</span>
+      <span><span class="num">SECTION 09 //</span> MAKER</span>
       <span class="rule"></span>
     </div>
 
