@@ -341,9 +341,11 @@ function installMediaPermissionHandlers() {
 // ─── Window ────────────────────────────────────────────────────
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 920, height: 660, minWidth: 640, minHeight: 420,
+    width: 420, height: 540, minWidth: 360, minHeight: 360,
     show: false, frame: false, transparent: true,
     skipTaskbar: true, alwaysOnTop: true, hasShadow: false, resizable: true,
+    vibrancy: process.platform === 'darwin' ? 'under-window' : undefined,
+    visualEffectState: 'active',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,

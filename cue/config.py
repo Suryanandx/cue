@@ -79,7 +79,7 @@ class CueConfig:
     stt: STTConfig = field(default_factory=STTConfig)
     tts: TTSConfig = field(default_factory=TTSConfig)
     ui: UIConfig = field(default_factory=UIConfig)
-    default_agent: str = "interview-behavioral"
+    default_agent: str = "auto"
 
     @classmethod
     def load(cls) -> "CueConfig":

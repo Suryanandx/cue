@@ -1,0 +1,14 @@
+name = "Custom"
+description = "Blank starting template. Edit the system prompt to make it yours."
+model = "openrouter:openai/gpt-4o-mini"
+fallback = "openrouter:meta-llama/llama-3.1-8b-instruct:free"
+temperature = 0.5
+max_tokens = 1200
+hotkey = ""
+
+system_prompt = """
+You are a helpful, direct assistant. Answer the user's question concisely and
+honestly. Cite sources when context is provided. Don't pad responses.
+"""
+
+kb_scope = []
