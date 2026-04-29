@@ -101,6 +101,14 @@ function buildOpenRouterTags(model) {
   if (id.endsWith(':free') || id === 'openrouter/free') tags.add('free');
   if (id === 'openrouter/free' || /router/i.test(name)) tags.add('router');
 
+  // Zero listed price → treat like free tier for labeling (OpenRouter `pricing` object).
+  const pr = model?.pricing;
+  if (pr && typeof pr === 'object') {
+    const pp = Number(pr.prompt);
+    const pc = Number(pr.completion);
+    if (!Number.isNaN(pp) && !Number.isNaN(pc) && pp === 0 && pc === 0) tags.add('free');
+  }
+
   const modalities = Array.isArray(model?.architecture?.input_modalities)
     ? model.architecture.input_modalities.map(m => String(m).toLowerCase())
     : [];
@@ -114,10 +122,42 @@ function buildOpenRouterTags(model) {
   if (params.includes('structured_outputs')) tags.add('structured');
   if (params.includes('reasoning') || params.includes('include_reasoning')) tags.add('reasoning');
 
+  // Paid chat models (not covered by :free or zero pricing).
+  if (!tags.has('free')) tags.add('paid');
+
   // "File analysis" proxy: multimodal input and/or very large context for long docs.
   const ctx = Number(model?.context_length || 0);
   if (modalities.includes('image') || ctx >= 128000) tags.add('file-analysis');
   return Array.from(tags);
+}
+
+/** Chat completions only — skip embeddings / rerank-only rows from OpenRouter /models. */
+function isOpenRouterTextChatModel(m) {
+  if (!m || typeof m.id !== 'string') return false;
+  const id = m.id.toLowerCase();
+  if (/text-embedding|\/(?:embed|embeddings)(?:\/|$)|\brerank\b/i.test(id)) return false;
+
+  const modalities = Array.isArray(m?.architecture?.input_modalities)
+    ? m.architecture.input_modalities.map(x => String(x).toLowerCase())
+    : [];
+  if (modalities.length > 0 && !modalities.includes('text')) return false;
+  return true;
+}
+
+function sortOpenRouterEntries(entries) {
+  const tier = (x) => {
+    const name = x.name;
+    const tg = x.tags || [];
+    if (name === 'openrouter/openrouter/free') return 0;
+    if (tg.includes('router') && tg.includes('free')) return 1;
+    if (tg.includes('free')) return 2;
+    return 3;
+  };
+  return [...entries].sort((a, b) => {
+    const ta = tier(a), tb = tier(b);
+    if (ta !== tb) return ta - tb;
+    return String(a.name).localeCompare(String(b.name));
+  });
 }
 
 function openRouterGetModels() {
@@ -133,11 +173,15 @@ function openRouterGetModels() {
       let body = '';
       res.on('data', c => (body += c.toString()));
       res.on('end', () => {
+        if (res.statusCode !== 200) {
+          resolve({ ok: false, models: [], error: `OpenRouter models HTTP ${res.statusCode}` });
+          return;
+        }
         try {
           const parsed = JSON.parse(body);
           const rows = Array.isArray(parsed.data) ? parsed.data : [];
-          const free = rows
-            .filter(m => typeof m.id === 'string' && (m.id.endsWith(':free') || m.id === 'openrouter/free'))
+          const mapped = rows
+            .filter(m => typeof m.id === 'string' && isOpenRouterTextChatModel(m))
             .map(m => {
               const tags = buildOpenRouterTags(m);
               return {
@@ -149,21 +193,15 @@ function openRouterGetModels() {
                 tags,
                 supports_file_analysis: tags.includes('file-analysis')
               };
-            })
-            .sort((a, b) => {
-              const ar = a.name === 'openrouter/openrouter/free' ? 0 : 1;
-              const br = b.name === 'openrouter/openrouter/free' ? 0 : 1;
-              if (ar !== br) return ar - br;
-              return a.name.localeCompare(b.name);
             });
-          resolve({ ok: true, models: free });
+          resolve({ ok: true, models: sortOpenRouterEntries(mapped) });
         } catch (e) {
           resolve({ ok: false, models: [], error: e.message });
         }
       });
     });
     req.on('error', e => resolve({ ok: false, models: [], error: e.message }));
-    req.setTimeout(12000, () => req.destroy(new Error('openrouter models timeout')));
+    req.setTimeout(45000, () => req.destroy(new Error('openrouter models timeout')));
     req.end();
   });
 }
@@ -207,10 +245,12 @@ function openRouterChatStream({ model, messages, opts, onChunk, onDone, onError 
       return;
     }
     res.on('data', (chunk) => {
+      if (done) return;
       buf += chunk.toString();
       const lines = buf.split('\n');
       buf = lines.pop();
       for (const lineRaw of lines) {
+        if (done) return;
         const line = lineRaw.trim();
         if (!line.startsWith('data:')) continue;
         const data = line.slice(5).trim();
@@ -218,6 +258,17 @@ function openRouterChatStream({ model, messages, opts, onChunk, onDone, onError 
         if (data === '[DONE]') { finish(); continue; }
         try {
           const obj = JSON.parse(data);
+          if (obj.error) {
+            const em =
+              typeof obj.error === 'object'
+                ? obj.error.message || JSON.stringify(obj.error)
+                : String(obj.error);
+            if (!done) {
+              done = true;
+              onError(new Error(em));
+            }
+            return;
+          }
           const delta = obj?.choices?.[0]?.delta?.content;
           if (delta) onChunk(delta);
         } catch (_) {}
@@ -311,8 +362,24 @@ function httpStream(urlPath, body, onChunk, onDone, onError) {
     (res) => {
       let buf = '';
       let done = false;
+      const fail = (err) => { if (!done) { done = true; onError(err); } };
       const finish = () => { if (!done) { done = true; onDone(); } };
+      if (res.statusCode >= 400) {
+        let errBody = '';
+        res.on('data', c => (errBody += c.toString()));
+        res.on('end', () => {
+          try {
+            const p = JSON.parse(errBody);
+            const msg = p.error || p.message || errBody.slice(0, 300);
+            fail(new Error(typeof msg === 'string' ? msg : JSON.stringify(msg)));
+          } catch (_) {
+            fail(new Error(`Ollama error (${res.statusCode})`));
+          }
+        });
+        return;
+      }
       res.on('data', chunk => {
+        if (done) return;
         buf += chunk.toString();
         const lines = buf.split('\n');
         buf = lines.pop();
@@ -320,13 +387,20 @@ function httpStream(urlPath, body, onChunk, onDone, onError) {
           if (!line.trim()) continue;
           try {
             const obj = JSON.parse(line);
+            if (obj.error) {
+              const em =
+                typeof obj.error === 'string' ? obj.error : JSON.stringify(obj.error);
+              fail(new Error(em));
+              buf = '';
+              return;
+            }
             if (obj.message?.content) onChunk(obj.message.content);
             if (obj.done === true) finish();
           } catch (_) {}
         }
       });
       res.on('end',   finish);
-      res.on('error', e => { if (!done) { done = true; onError(e); } });
+      res.on('error', e => fail(e));
     }
   );
   req.on('error', e => onError(e));
@@ -462,13 +536,11 @@ ipcMain.handle('ollama:models', async () => {
   }
 
   if (all.length > 0) {
-    const sorted = all.sort((a, b) => {
-      const ar = a.name === 'openrouter/openrouter/free' ? 0 : 1;
-      const br = b.name === 'openrouter/openrouter/free' ? 0 : 1;
-      if (ar !== br) return ar - br;
-      return String(a.name).localeCompare(String(b.name));
-    });
-    console.log('[models]', sorted.map(m => m.name).join(', '));
+    const ol = all.filter(m => (m.provider || 'ollama') === 'ollama');
+    const or = all.filter(m => m.provider === 'openrouter');
+    ol.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    const sorted = [...ol, ...sortOpenRouterEntries(or)];
+    console.log('[models]', sorted.length, 'models — ollama:', ol.length, 'openrouter:', or.length);
     return { ok: true, models: sorted };
   }
   return { ok: false, models: [], error: ollamaErr || orErr || 'No model providers available' };
@@ -486,6 +558,52 @@ function resetIdleTimer(model) {
   }, 5 * 60 * 1000);   // 5 minutes
 }
 
+function runOllamaChatStream(model, messages, opts, send, resolve) {
+  lastModel = model;
+  resetIdleTimer(model);
+
+  const brainMode = (opts && opts.brain === 'deep') ? 'deep' : 'balanced';
+  const profile = applyBrainProfile(modelProfile(model), brainMode);
+  const temperature = profile.temperature ?? 0.4;
+  console.log(`[ollama:chat] model=${model} brain=${brainMode} ctx=${profile.num_ctx} max_tokens=${profile.num_predict}`);
+
+  activeStream = httpStream(
+    '/api/chat',
+    {
+      model, messages, stream: true,
+      keep_alive: profile.keep_alive,
+      options: {
+        temperature,
+        num_predict: profile.num_predict,
+        num_ctx:     profile.num_ctx,
+        num_thread:  profile.num_thread,
+        num_gpu:     1,        // use GPU layers when available (Apple Silicon MPS)
+        low_vram:    false
+      }
+    },
+    chunk => send('chat:chunk', chunk),
+    ()    => { activeStream = null; send('chat:done', null); resolve({ ok: true }); },
+    err   => { activeStream = null; send('chat:error', err.message); resolve({ ok: false, error: err.message }); }
+  );
+}
+
+/** If OpenRouter fails (no key, HTTP error, stream error), retry with the first local Ollama model. */
+function fallbackOpenRouterToOllama(orErr, send, resolve, messages, opts) {
+  httpGet('/api/tags', 5000).then(d => {
+    const name = (d.models || [])[0]?.name;
+    if (!name) {
+      send('chat:error', orErr.message);
+      resolve({ ok: false, error: orErr.message });
+      return;
+    }
+    console.warn('[cue] OpenRouter failed (' + orErr.message + '); using local Ollama model:', name);
+    runOllamaChatStream(name, messages, opts, send, resolve);
+  }).catch(() => {
+    send('chat:error', orErr.message);
+    resolve({ ok: false, error: orErr.message });
+  });
+}
+
 ipcMain.handle('ollama:chat', (event, { model, messages, opts }) => {
   // Kill any in-flight stream
   if (activeStream) { try { activeStream.destroy(); } catch (_) {} activeStream = null; }
@@ -495,47 +613,32 @@ ipcMain.handle('ollama:chat', (event, { model, messages, opts }) => {
       const send = (ch, data) => {
         if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(ch, data);
       };
+      let triedLocalFallback = false;
       activeStream = openRouterChatStream({
         model,
         messages,
         opts,
         onChunk: (chunk) => send('chat:chunk', chunk),
         onDone: () => { activeStream = null; send('chat:done', null); resolve({ ok: true }); },
-        onError: (err) => { activeStream = null; send('chat:error', err.message); resolve({ ok: false, error: err.message }); }
+        onError: (err) => {
+          activeStream = null;
+          if (!triedLocalFallback) {
+            triedLocalFallback = true;
+            fallbackOpenRouterToOllama(err, send, resolve, messages, opts);
+            return;
+          }
+          send('chat:error', err.message);
+          resolve({ ok: false, error: err.message });
+        }
       });
     });
   }
-
-  lastModel = model;
-  resetIdleTimer(model);
-
-  const brainMode = (opts && opts.brain === 'deep') ? 'deep' : 'balanced';
-  const profile = applyBrainProfile(modelProfile(model), brainMode);
-  const temperature = profile.temperature ?? 0.4;
-  console.log(`[ollama:chat] model=${model} brain=${brainMode} ctx=${profile.num_ctx} max_tokens=${profile.num_predict}`);
 
   return new Promise(resolve => {
     const send = (ch, data) => {
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(ch, data);
     };
-    activeStream = httpStream(
-      '/api/chat',
-      {
-        model, messages, stream: true,
-        keep_alive: profile.keep_alive,
-        options: {
-          temperature,
-          num_predict: profile.num_predict,
-          num_ctx:     profile.num_ctx,
-          num_thread:  profile.num_thread,
-          num_gpu:     1,        // use GPU layers when available (Apple Silicon MPS)
-          low_vram:    false
-        }
-      },
-      chunk => send('chat:chunk', chunk),
-      ()    => { activeStream = null; send('chat:done', null); resolve({ ok: true }); },
-      err   => { activeStream = null; send('chat:error', err.message); resolve({ ok: false, error: err.message }); }
-    );
+    runOllamaChatStream(model, messages, opts, send, resolve);
   });
 });
 

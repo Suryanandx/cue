@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import AsyncIterator
 
 import httpx
@@ -8,6 +9,20 @@ import httpx
 from cue.providers.base import ChatMessage, Provider, StreamEvent
 
 BASE_URL = "https://openrouter.ai/api/v1"
+
+
+def _is_openrouter_chat_model(row: dict) -> bool:
+    """Exclude embeddings / rerank endpoints from chat completion listings."""
+    mid = str(row.get("id", "")).lower()
+    if re.search(r"text-embedding|/(?:embed|embeddings)(?:/|$)|\brerank\b", mid):
+        return False
+    arch = row.get("architecture") or {}
+    modalities = arch.get("input_modalities") or []
+    if modalities:
+        lowers = {str(x).lower() for x in modalities}
+        if "text" not in lowers:
+            return False
+    return True
 
 
 class OpenRouterProvider(Provider):
@@ -33,7 +48,7 @@ class OpenRouterProvider(Provider):
             r = await c.get("/models")
             r.raise_for_status()
             data = r.json().get("data", [])
-            return sorted(m["id"] for m in data)
+            return sorted(m["id"] for m in data if _is_openrouter_chat_model(m))
 
     async def stream_chat(
         self,

@@ -26,10 +26,17 @@ def resolve(spec: str, cfg: CueConfig) -> tuple[Provider, str]:
 
     Bare `gpt-4o-mini` defaults to OpenRouter; bare `llama3:8b` defaults to Ollama.
     """
+    spec = spec.strip()
+    if not spec:
+        raise ValueError("Model spec is empty")
     if ":" in spec:
         provider, _, model = spec.partition(":")
         # Ollama tags use ':' too — `llama3:8b` is one token, not provider+model
-        if provider in ("openrouter", "ollama") and model:
+        if provider in ("openrouter", "ollama"):
+            if not model:
+                raise ValueError(
+                    f"Invalid model spec {spec!r}: missing model id after '{provider}:'"
+                )
             return _build(provider, cfg), model
     # Heuristic: contains '/' → openrouter, else ollama
     if "/" in spec:
@@ -47,11 +54,20 @@ async def route(
     max_tokens: int = 1024,
 ) -> AsyncIterator[StreamEvent]:
     """Stream from primary; if first event is an error, retry on fallback."""
-    p, m = resolve(primary, cfg)
+    try:
+        p, m = resolve(primary, cfg)
+    except ValueError as e:
+        yield StreamEvent(type="error", error=str(e))
+        return
+
     started = False
     async for ev in p.stream_chat(m, messages, temperature=temperature, max_tokens=max_tokens):
         if ev.type == "error" and not started and fallback:
-            fp, fm = resolve(fallback, cfg)
+            try:
+                fp, fm = resolve(fallback, cfg)
+            except ValueError as e:
+                yield StreamEvent(type="error", error=str(e))
+                return
             async for fev in fp.stream_chat(
                 fm, messages, temperature=temperature, max_tokens=max_tokens
             ):

@@ -374,6 +374,11 @@ function updatePopoverMemInfo(id) {
   E.settingsMemInfo.textContent = t;
 }
 
+function modelTagsForDisplay(tags) {
+  if (!Array.isArray(tags) || !tags.length) return [];
+  return tags.filter(t => t && t !== 'openrouter').slice(0, 4);
+}
+
 // ── Ollama ───────────────────────────────────────────────────
 async function pollOllama() {
   const ok = await window.ollama.refresh();
@@ -384,7 +389,8 @@ async function pollOllama() {
     E.modelSel.innerHTML = '<option value="">Model...</option>' +
       window.ollama.models.map(m => {
         const sz = m.size ? ' (' + (m.size/1e9).toFixed(1) + 'GB)' : '';
-        const tags = Array.isArray(m.tags) && m.tags.length ? ' [' + m.tags.slice(0, 3).join(', ') + ']' : '';
+        const showTags = modelTagsForDisplay(m.tags);
+        const tags = showTags.length ? ' [' + showTags.join(', ') + ']' : '';
         const fileCap = m.supports_file_analysis ? ' [files]' : '';
         return `<option value="${m.name}"${m.name===cur?' selected':''}>${m.name}${tags}${fileCap}${sz}</option>`;
       }).join('');
@@ -937,7 +943,7 @@ async function renderModels() {
     } else E.memWarning.style.display='none';
   }
   E.modelsList.innerHTML = models.length
-    ? models.map(m=>{const provider=(m.provider||'ollama');const gb=m.size?m.size/1e9:0,lbl=memLabel(gb),c=m.name===cur?' model-current':'';const canDelete=provider==='ollama';const tag=provider==='openrouter'?' <span class="agent-tag" style="display:inline-block;margin-left:6px;vertical-align:middle">OpenRouter</span>':'';const tags=Array.isArray(m.tags)&&m.tags.length?` <span class="agent-tag" style="display:inline-block;margin-left:6px;vertical-align:middle">${x(m.tags.slice(0,4).join(' · '))}</span>`:'';const files=m.supports_file_analysis?` <span class="agent-tag" style="display:inline-block;margin-left:6px;vertical-align:middle">files</span>`:'';return`<div class="model-row${c}"><span class="model-row-name">${x(m.name)}${tag}${tags}${files}</span><span class="model-row-size ${lbl.cls}">${lbl.text}</span>${canDelete?`<button class="model-del" data-name="${x(m.name)}">del</button>`:''}</div>`;}).join('')
+    ? models.map(m=>{const provider=(m.provider||'ollama');const gb=m.size?m.size/1e9:0,lbl=memLabel(gb),c=m.name===cur?' model-current':'';const canDelete=provider==='ollama';const tag=provider==='openrouter'?' <span class="agent-tag" style="display:inline-block;margin-left:6px;vertical-align:middle">OpenRouter</span>':'';const tagStr=modelTagsForDisplay(m.tags).join(' · ');const tags=tagStr?` <span class="agent-tag" style="display:inline-block;margin-left:6px;vertical-align:middle">${x(tagStr)}</span>`:'';const files=m.supports_file_analysis?` <span class="agent-tag" style="display:inline-block;margin-left:6px;vertical-align:middle">files</span>`:'';return`<div class="model-row${c}"><span class="model-row-name">${x(m.name)}${tag}${tags}${files}</span><span class="model-row-size ${lbl.cls}">${lbl.text}</span>${canDelete?`<button class="model-del" data-name="${x(m.name)}">del</button>`:''}</div>`;}).join('')
     : '<div style="padding:8px;font-size:11px;color:var(--fg3)">No models downloaded</div>';
   E.modelsList.querySelectorAll('.model-del').forEach(btn=>btn.addEventListener('click',async()=>{const r=await window.cue.ollama.delete(btn.dataset.name);if(r.ok){toast('Deleted','ok');pollOllama();}else toast('Failed','err');}));
 }
@@ -1732,6 +1738,24 @@ const POPULAR_OPENROUTER_MODELS = [
   { id: 'deepseek/deepseek-chat',                  tag: 'cheap' },
 ];
 
+/** Primary badge for picker row from OpenRouter tag set (free / paid / modality…). */
+function primaryTagFromApi(tags) {
+  if (!Array.isArray(tags) || !tags.length) return 'cloud';
+  if (tags.includes('free')) return 'free';
+  if (tags.includes('paid')) return 'paid';
+  if (tags.includes('router')) return 'router';
+  if (tags.includes('vision')) return 'vision';
+  if (tags.includes('reasoning')) return 'reasoning';
+  if (tags.includes('audio')) return 'audio';
+  return 'cloud';
+}
+
+function modelPickerTagClass(tag) {
+  if (tag === 'free') return 'model-free';
+  if (tag === 'paid') return 'model-paid';
+  return '';
+}
+
 function bindModelPicker() {
   const pill = $$('model-pill');
   const picker = $$('model-picker');
@@ -1792,7 +1816,7 @@ function bindModelPicker() {
       : orItems.map(m => `
         <div class="model-row ${`openrouter/${m.id}` === cur ? 'selected' : ''}" data-model="${m.id}" data-source="openrouter">
           <span class="model-name">${m.id}</span>
-          <span class="model-tag ${m.tag === 'free' ? 'model-free' : ''}">${m.tag}</span>
+          <span class="model-tag ${modelPickerTagClass(m.tag)}">${m.tag}</span>
         </div>`).join('');
 
     const olItems = cachedOL.filter(m => m.toLowerCase().includes(f));
@@ -1815,7 +1839,7 @@ function bindModelPicker() {
     });
   }
 
-  // Pull live Ollama tags + add any openrouter:free models main.js already enumerates
+  // Pull live Ollama tags + full OpenRouter catalog from main (tags: free, paid, vision, …)
   async function refreshLists() {
     try {
       const r = await window.cue.ollama.models();
@@ -1824,16 +1848,26 @@ function bindModelPicker() {
         cachedOL = r.models
           .filter(m => !String(m.name || '').startsWith('openrouter/'))
           .map(m => m.name);
-        // Free OpenRouter routes already enumerated by main.js — strip prefix and merge
-        // with the popular hardcoded list, dedupe by id
         const fromMain = r.models
           .filter(m => String(m.name || '').startsWith('openrouter/'))
-          .map(m => ({ id: m.name.replace(/^openrouter\//, ''), tag: 'free' }));
-        const merged = [...POPULAR_OPENROUTER_MODELS];
-        for (const x of fromMain) {
-          if (!merged.find(y => y.id === x.id)) merged.push(x);
+          .map(m => ({
+            id: m.name.replace(/^openrouter\//, ''),
+            tag: primaryTagFromApi(m.tags),
+            tags: m.tags || []
+          }));
+        const byId = new Map(fromMain.map(x => [x.id, x]));
+        const merged = [];
+        for (const p of POPULAR_OPENROUTER_MODELS) {
+          const api = byId.get(p.id);
+          if (api) {
+            merged.push({ id: p.id, tag: api.tag, tags: api.tags, _pin: true });
+          } else {
+            merged.push({ ...p, _pin: true });
+          }
+          byId.delete(p.id);
         }
-        cachedOR = merged;
+        const rest = [...byId.values()].sort((a, b) => a.id.localeCompare(b.id));
+        cachedOR = [...merged, ...rest];
       }
     } catch (_) { /* keep cached defaults */ }
   }

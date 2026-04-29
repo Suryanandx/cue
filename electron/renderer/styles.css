@@ -391,6 +391,10 @@ button { font-family: inherit; cursor: pointer; }
   color: var(--accent);
   font-weight: 600;
 }
+.model-row .model-paid {
+  color: var(--text-mute);
+  opacity: 0.85;
+}
 .model-row.empty {
   color: var(--text-mute);
   font-style: italic;
