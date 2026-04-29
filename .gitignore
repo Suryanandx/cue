@@ -1,9 +1,9 @@
-# Python
+# Python (root-anchored so we don't collide with electron/build/)
 __pycache__/
 *.py[cod]
 *.egg-info/
-dist/
-build/
+/dist/
+/build/
 .venv/
 venv/
 .pytest_cache/
