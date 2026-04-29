@@ -81,6 +81,8 @@ function cacheEls() {
     memoryBar:      $('memory-bar'),
     memoryBarText:  $('memory-bar-text'),
     ctxMenu:        $('ctx-menu'),
+    ctxDuplicate:   $('ctx-duplicate'),
+    ctxSettings:    $('ctx-settings'),
     ctxRename:      $('ctx-rename'),
     ctxClear:       $('ctx-clear'),
     ctxDelete:      $('ctx-delete'),
@@ -141,6 +143,7 @@ function init() {
   bindDictation();
   bindMessageBubbleActions();
   bindCtxMenu();
+  bindApplicationContextMenu();
   renderAttachmentTray();
 
   // New: Cluely-style pickers
@@ -210,7 +213,7 @@ function renderChatList() {
     item.dataset.id = chat.id;
     const age = timeAgo(chat.updated);
     item.innerHTML = `
-      <span class="chat-item-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+      <span class="chat-item-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
       <span class="chat-item-name" title="${x(chat.name)}">${x(chat.name)}</span>
       <span class="chat-item-time">${age}</span>`;
     item.addEventListener('click', () => {
@@ -220,10 +223,11 @@ function renderChatList() {
     });
     item.addEventListener('contextmenu', ev => {
       ev.preventDefault();
+      ev.stopPropagation();
       S.ctxMenu.targetId = chat.id;
       E.ctxMenu.style.display = 'block';
-      E.ctxMenu.style.left = Math.min(ev.clientX, window.innerWidth - 170) + 'px';
-      E.ctxMenu.style.top  = Math.min(ev.clientY, window.innerHeight - 120) + 'px';
+      E.ctxMenu.style.left = Math.min(ev.clientX, window.innerWidth - 182) + 'px';
+      E.ctxMenu.style.top  = Math.min(ev.clientY, window.innerHeight - 220) + 'px';
     });
     E.chatList.appendChild(item);
   });
@@ -280,8 +284,41 @@ function updateMemoryBar(id) {
   E.memoryBarText.textContent = txt;
 }
 
+function bindApplicationContextMenu() {
+  if (!window.cue?.win?.contextMenuAt || !window.cue.win.onAppCommand) return;
+  window.cue.win.onAppCommand(cmd => {
+    if (cmd === 'toggle-sidebar' && E.btnToggleSidebar) E.btnToggleSidebar.click();
+    if (cmd === 'toggle-opacity' && E.btnGhost) E.btnGhost.click();
+  });
+  document.addEventListener('contextmenu', ev => {
+    if (ev.target.closest('.chat-item') || ev.target.closest('#ctx-menu')) return;
+    if (ev.target.closest('.popover, .settings-popover, select, input, textarea')) return;
+    if (ev.target.closest('.msg-body, .msg, .markdown-body')) return;
+    ev.preventDefault();
+    window.cue.win.contextMenuAt({ x: ev.screenX, y: ev.screenY });
+  });
+}
+
 // ── Context menu ──────────────────────────────────────────────
 function bindCtxMenu() {
+  E.ctxDuplicate.addEventListener('click', () => {
+    E.ctxMenu.style.display = 'none';
+    const id = S.ctxMenu.targetId;
+    const nid = window.chatStore.duplicateChat(id);
+    if (!nid) return;
+    window.chatStore.setActive(nid);
+    renderChatList();
+    loadChat(nid);
+    toast('Session duplicated', 'ok');
+  });
+  E.ctxSettings.addEventListener('click', () => {
+    E.ctxMenu.style.display = 'none';
+    const id = S.ctxMenu.targetId;
+    window.chatStore.setActive(id);
+    renderChatList();
+    loadChat(id);
+    openPopover();
+  });
   E.ctxRename.addEventListener('click', () => {
     E.ctxMenu.style.display = 'none';
     const id   = S.ctxMenu.targetId;
@@ -511,6 +548,62 @@ async function addAttachments(files) {
   renderAttachmentTray();
 }
 
+/** After the first assistant reply, replace the provisional title with a short LLM-generated label. */
+async function maybeGenerateSmartTitle(chatId) {
+  const chat = window.chatStore.getChat(chatId);
+  if (!chat || chat.settings.autoTitleDone) return;
+  const assistants = chat.messages.filter(m => m.role === 'assistant');
+  if (assistants.length !== 1) return;
+  if (!window.ollama.connected || !window.ollama.getModel()) {
+    window.chatStore.saveSettings(chatId, { autoTitleDone: true });
+    return;
+  }
+
+  const users = chat.messages.filter(m => m.role === 'user');
+  const u0 = users[0]?.content || '';
+  const a0 = assistants[0]?.content || '';
+  let generated = '';
+
+  await window.ollama.chat(
+    [
+      {
+        role: 'system',
+        content:
+          'Reply with exactly one short title for this chat (maximum 44 characters). No quotation marks. Describe the user\'s topic or goal. Title case or sentence case.'
+      },
+      {
+        role: 'user',
+        content:
+          'First user message:\n' +
+          u0.slice(0, 1200) +
+          '\n\nFirst assistant reply begins:\n' +
+          a0.slice(0, 400)
+      }
+    ],
+    ch => {
+      generated += ch;
+    },
+    () => {
+      let t = generated
+        .replace(/^["'\s]+|["'\s]+$/g, '')
+        .split('\n')[0]
+        .trim()
+        .slice(0, 48);
+      if (t.length >= 3) {
+        window.chatStore.renameChat(chatId, t);
+        renderChatList();
+        if (chatId === window.chatStore.getActiveId()) E.chatTitle.textContent = t;
+      } else {
+        window.chatStore.saveSettings(chatId, { autoTitleDone: true });
+      }
+    },
+    () => {
+      window.chatStore.saveSettings(chatId, { autoTitleDone: true });
+    },
+    { brain: 'balanced' }
+  );
+}
+
 async function sendMsg(overrideText) {
   if (S.busy) return;
   const text = (overrideText || E.chatInput.value).trim();
@@ -620,9 +713,10 @@ async function sendMsg(overrideText) {
       window.chatStore.addMessage(chatId, 'assistant', full, agentKey);
       renderChatList(); // refresh timestamps
 
-      // Update chat title if it was auto-named
       const updatedChat = window.chatStore.getChat(chatId);
       E.chatTitle.textContent = updatedChat.name;
+
+      maybeGenerateSmartTitle(chatId);
 
       updateMemoryBar(chatId);
 

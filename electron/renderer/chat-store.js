@@ -24,6 +24,17 @@ const STORE_KEY   = 'cue-chats';
 const WINDOW_SIZE = 8;   // recent message pairs kept in full — safe for 2048 ctx
 const SUMMARY_THRESHOLD = 12; // summarize when history exceeds this many messages
 
+/** Strip attachments suffix and trim for sidebar title until smart title runs. */
+function deriveFallbackTitle(rawContent) {
+  let s = String(rawContent || '').replace(/\s+/g, ' ').trim();
+  const cut = s.search(/\n\nAttachments\b/i);
+  if (cut > 0) s = s.slice(0, cut).trim();
+  if (!s) return 'Chat';
+  if (s.length <= 44) return s;
+  const words = s.split(/\s+/).slice(0, 8).join(' ');
+  return words.length > 44 ? words.slice(0, 41) + '…' : words;
+}
+
 class ChatStore {
   constructor() {
     this._chats = this._load();
@@ -48,6 +59,7 @@ class ChatStore {
       if (!chat.settings.tone) chat.settings.tone = 'interview';
       if (typeof chat.settings.context !== 'string') chat.settings.context = '';
       if (!chat.settings.brain) chat.settings.brain = 'balanced';
+      if (typeof chat.settings.autoTitleDone !== 'boolean') chat.settings.autoTitleDone = false;
     }
 
     localStorage.setItem('cue-active-chat', this._activeId);
@@ -62,7 +74,7 @@ class ChatStore {
       name: name || 'New Chat',
       created: Date.now(),
       updated: Date.now(),
-      settings: { agent: 'auto', tone: 'interview', context: '', brain: 'balanced' },
+      settings: { agent: 'auto', tone: 'interview', context: '', brain: 'balanced', autoTitleDone: false },
       messages: [],
       summary: null,
       summarizedUpTo: -1
@@ -85,7 +97,27 @@ class ChatStore {
   renameChat(id, newName) {
     if (!this._chats[id]) return;
     this._chats[id].name = newName.trim() || 'Chat';
+    this._chats[id].settings = this._chats[id].settings || {};
+    this._chats[id].settings.autoTitleDone = true;
     this._save();
+  }
+
+  duplicateChat(id) {
+    const src = this._chats[id];
+    if (!src) return null;
+    const nid = 'chat_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+    this._chats[nid] = {
+      id: nid,
+      name: (src.name || 'Chat') + ' — copy',
+      created: Date.now(),
+      updated: Date.now(),
+      settings: { ...(src.settings || {}) },
+      messages: JSON.parse(JSON.stringify(src.messages || [])),
+      summary: src.summary,
+      summarizedUpTo: src.summarizedUpTo
+    };
+    this._save();
+    return nid;
   }
 
   clearMessages(id) {
@@ -117,9 +149,9 @@ class ChatStore {
     chat.messages.push({ role, content, ts: Date.now() });
     chat.updated = Date.now();
 
-    // Auto-name the chat from the first user message
+    // Provisional title from first user message (refined after first assistant reply)
     if (role === 'user' && chat.messages.filter(m => m.role === 'user').length === 1) {
-      chat.name = content.slice(0, 40).replace(/\n/g, ' ').trim() + (content.length > 40 ? '…' : '');
+      chat.name = deriveFallbackTitle(content);
     }
 
     this._save();

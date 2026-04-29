@@ -1,5 +1,5 @@
 const {
-  app, BrowserWindow, ipcMain, dialog,
+  app, BrowserWindow, ipcMain, dialog, Menu,
   globalShortcut, desktopCapturer, session, systemPreferences, shell
 } = require('electron');
 const fs    = require('fs');
@@ -754,6 +754,40 @@ ipcMain.handle('ollama:profile', (_, { name }) => {
 });
 
 // ─── IPC: Window ───────────────────────────────────────────────
+ipcMain.handle('win:context-menu', (_, { x, y }) => {
+  if (!mainWindow) return;
+  const sx = Math.round(Number(x) || 0);
+  const sy = Math.round(Number(y) || 0);
+  const template = [
+    {
+      label: 'Sessions sidebar',
+      click: () => mainWindow.webContents.send('app:ctx', 'toggle-sidebar')
+    },
+    {
+      label: 'Stealth opacity',
+      click: () => mainWindow.webContents.send('app:ctx', 'toggle-opacity')
+    },
+    { type: 'separator' },
+    {
+      label: 'Always on top',
+      type: 'checkbox',
+      checked: mainWindow.isAlwaysOnTop(),
+      click: (item) => mainWindow.setAlwaysOnTop(item.checked)
+    },
+    { type: 'separator' },
+    {
+      label: 'Reload UI',
+      click: () => mainWindow.reload()
+    },
+    {
+      label: 'Hide window',
+      accelerator: process.platform === 'darwin' ? 'Cmd+W' : 'Ctrl+W',
+      click: () => mainWindow.hide()
+    }
+  ];
+  Menu.buildFromTemplate(template).popup({ window: mainWindow, x: sx, y: sy });
+});
+
 ipcMain.handle('win:minimize', () => mainWindow?.minimize());
 ipcMain.handle('win:hide',     () => mainWindow?.hide());
 ipcMain.handle('win:pin',  (_, on) => mainWindow?.setAlwaysOnTop(on));

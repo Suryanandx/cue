@@ -28,7 +28,13 @@ contextBridge.exposeInMainWorld('cue', {
     hide:     ()    => ipcRenderer.invoke('win:hide'),
     pin:      (on)  => ipcRenderer.invoke('win:pin', on),
     ghost:    ()    => ipcRenderer.invoke('win:ghost'),
-    resize:   (w, h) => ipcRenderer.invoke('win:resize', { width: w, height: h })
+    resize:   (w, h) => ipcRenderer.invoke('win:resize', { width: w, height: h }),
+    /** Native OS menu at screen coordinates (use contextmenu screenX / screenY). */
+    contextMenuAt: (pt) => ipcRenderer.invoke('win:context-menu', pt),
+    onAppCommand: (cb) => {
+      ipcRenderer.removeAllListeners('app:ctx');
+      ipcRenderer.on('app:ctx', (_, cmd) => cb(cmd));
+    }
   },
   audio: {
     sources:   () => ipcRenderer.invoke('audio:sources'),
