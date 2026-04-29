@@ -303,6 +303,144 @@
     }
     .btn-deploy:hover { background: var(--phos); color: var(--void); }
 
+    /* PRIMARY DOWNLOAD CTA */
+    .btn-download {
+      display: inline-flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 14px 22px;
+      background: var(--phos);
+      color: var(--void);
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      transition: background 0.15s, transform 0.1s, box-shadow 0.18s;
+      box-shadow: 0 4px 24px rgba(0, 255, 140, 0.18);
+      min-width: 240px;
+    }
+    .btn-download:hover {
+      background: #6ce8ad;
+      transform: translateY(-1px);
+      box-shadow: 0 8px 36px rgba(0, 255, 140, 0.28);
+    }
+    .btn-download .btn-download-arrow { font-size: 14px; }
+
+    /* DOWNLOAD CARDS */
+    .dl-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--line);
+      border: 1px solid var(--line-bright);
+    }
+    @media (max-width: 900px) { .dl-grid { grid-template-columns: 1fr; } }
+    .dl-card {
+      background: var(--bg);
+      padding: 28px 26px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      transition: background 0.2s;
+      cursor: pointer;
+      color: inherit;
+      text-decoration: none;
+      position: relative;
+    }
+    .dl-card:hover { background: rgba(0, 255, 140, 0.025); }
+    .dl-card.suggested {
+      background: rgba(0, 255, 140, 0.04);
+    }
+    .dl-card.suggested::after {
+      content: "DETECTED";
+      position: absolute;
+      top: 12px; right: 16px;
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 0.18em;
+      color: var(--phos);
+      padding: 2px 8px;
+      border: 1px solid var(--phos-deep);
+      border-radius: 99px;
+    }
+    .dl-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .dl-glyph {
+      width: 32px; height: 32px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--panel);
+      border: 1px solid var(--phos-deep);
+      border-radius: 6px;
+      color: var(--phos);
+      font-size: 14px;
+    }
+    .dl-tag {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--text-mute);
+    }
+    .dl-card h3 {
+      font-family: var(--mono);
+      font-weight: 600;
+      font-size: 18px;
+      letter-spacing: -0.015em;
+      color: var(--text);
+    }
+    .dl-card p {
+      font-family: var(--mono);
+      font-size: 12.5px;
+      line-height: 1.55;
+      color: var(--text-dim);
+      flex: 1;
+    }
+    .dl-card p code {
+      color: var(--phos);
+      font-size: 11.5px;
+    }
+    .dl-cta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: 14px;
+      border-top: 1px solid var(--line);
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-dim);
+      letter-spacing: 0.06em;
+    }
+    .dl-cta .dl-arrow {
+      color: var(--phos);
+      font-size: 14px;
+      transition: transform 0.18s;
+    }
+    .dl-card:hover .dl-cta .dl-arrow { transform: translateY(2px); }
+
+    /* CLI BLOCK */
+    .cli-block {
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.85;
+      color: var(--text);
+      background: var(--bg);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 14px 18px;
+      overflow-x: auto;
+    }
+    .cli-block .p { color: var(--phos); user-select: none; }
+    .cli-block .s { color: #f3b97a; }
+    .cli-block .c { color: var(--text-mute); }
+
     /* HERO CONSOLE — fake terminal session as visual centerpiece */
     .console {
       border: 1px solid var(--line-bright);
@@ -757,9 +895,9 @@
       <span class="name">cue / 0.1.0</span>
     </a>
     <nav class="bar-nav">
+      <a href="#download">Download</a>
       <a href="#features">Features</a>
       <a href="#agents">Agents</a>
-      <a href="#install">Install</a>
       <a href="#api">API</a>
       <a href="https://github.com/Suryanandx/cue" target="_blank" rel="noopener" class="cta">[ Source ↗ ]</a>
     </nav>
@@ -799,11 +937,15 @@
     </p>
 
     <div class="hero-actions">
+      <a href="#download" class="btn-download" id="primary-download">
+        <span class="btn-download-os" id="primary-os">Download for your OS</span>
+        <span class="btn-download-arrow">↓</span>
+      </a>
       <div class="install-line">
         <span class="promp">$</span>pip install cue
       </div>
       <a href="https://github.com/Suryanandx/cue" target="_blank" rel="noopener" class="btn-deploy">
-        ./deploy →
+        ./source →
       </a>
     </div>
 
@@ -829,6 +971,101 @@
 <span class="c">▸ &nbsp;</span><span class="ok">cue ⟶ </span> <span class="stream">brute force: O(n) per request, redis hash. optimal: ...</span>
 <span class="warn">█</span> streaming · 240 tokens · $0.003</pre>
     </div>
+  </div>
+</section>
+
+<!-- DOWNLOAD -->
+<section class="sec" id="download">
+  <div class="frame">
+    <div class="sec-label">
+      <span><span class="num">SECTION 00 //</span> DOWNLOAD</span>
+      <span class="rule"></span>
+    </div>
+
+    <h2 class="sec-title">
+      install &amp; <span class="green">go.</span><br>
+      <span class="dim">no setup wizard, no signup, no card.</span>
+    </h2>
+    <p class="sec-sub">
+      Three ways in: download the desktop app, install the Python CLI, or run from
+      source. Each route ends with the same overlay and the same daemon. Pick what
+      fits how you work.
+    </p>
+
+    <div class="dl-grid">
+
+      <a class="dl-card" href="https://github.com/Suryanandx/cue/releases/latest" target="_blank" rel="noopener" data-os="mac">
+        <div class="dl-head">
+          <span class="dl-glyph">⌘</span>
+          <span class="dl-tag">macOS · 11+</span>
+        </div>
+        <h3>Mac (DMG)</h3>
+        <p>Apple Silicon and Intel. Drag to <code>/Applications</code>, open, paste your OpenRouter key, done.</p>
+        <div class="dl-cta">
+          <span>Cue-<span class="dl-ver">latest</span>.dmg</span>
+          <span class="dl-arrow">↓</span>
+        </div>
+      </a>
+
+      <a class="dl-card" href="https://github.com/Suryanandx/cue/releases/latest" target="_blank" rel="noopener" data-os="win">
+        <div class="dl-head">
+          <span class="dl-glyph">⊞</span>
+          <span class="dl-tag">Win 10 · 11</span>
+        </div>
+        <h3>Windows (EXE)</h3>
+        <p>NSIS installer. Auto-creates desktop + start-menu shortcuts. Same onboarding as macOS.</p>
+        <div class="dl-cta">
+          <span>Cue-Setup-<span class="dl-ver">latest</span>.exe</span>
+          <span class="dl-arrow">↓</span>
+        </div>
+      </a>
+
+      <a class="dl-card" href="https://github.com/Suryanandx/cue/releases/latest" target="_blank" rel="noopener" data-os="linux">
+        <div class="dl-head">
+          <span class="dl-glyph">▲</span>
+          <span class="dl-tag">Linux · x64 · arm64</span>
+        </div>
+        <h3>Linux (AppImage)</h3>
+        <p>Single-file portable build. Make executable, double-click to run. .deb also available for Debian / Ubuntu.</p>
+        <div class="dl-cta">
+          <span>Cue-<span class="dl-ver">latest</span>.AppImage</span>
+          <span class="dl-arrow">↓</span>
+        </div>
+      </a>
+
+    </div>
+
+    <!-- Power-user / CLI install -->
+    <div class="duo" style="margin-top:32px;">
+      <div class="duo-col">
+        <div class="head">
+          <h3>Python CLI</h3>
+          <span class="badge">CLI</span>
+        </div>
+        <p>One pip install. Same daemon under the hood. Power users skip the GUI.</p>
+        <pre class="cli-block"><span class="p">$</span> pip install cue
+<span class="p">$</span> cue init
+<span class="p">$</span> cue daemon start
+<span class="p">$</span> cue ask <span class="s">"design a rate limiter"</span></pre>
+      </div>
+      <div class="seam"></div>
+      <div class="duo-col">
+        <div class="head">
+          <h3>From source</h3>
+          <span class="badge cloud">DEV</span>
+        </div>
+        <p>Clone, run, hack. Apache-2.0 — fork freely.</p>
+        <pre class="cli-block"><span class="p">$</span> git clone https://github.com/Suryanandx/cue
+<span class="p">$</span> cd cue/electron
+<span class="p">$</span> npm install &amp;&amp; npm start
+<span class="c"># or build a redistributable</span>
+<span class="p">$</span> npm run build:mac</pre>
+      </div>
+    </div>
+
+    <p style="margin-top:24px;font-family:var(--mono);font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:var(--text-mute);">
+      // first launch shows an onboarding wizard — paste your openrouter key, or connect to local ollama. test, save, done.
+    </p>
   </div>
 </section>
 
@@ -1313,5 +1550,66 @@ cue stealth on / off<span class="c">                       &nbsp;screen-capture 
   </div>
 </footer>
 
+<script>
+  // OS detection — pick the right primary download CTA
+  (function () {
+    const ua = navigator.userAgent || '';
+    const platform = navigator.platform || '';
+    let os = 'mac';
+    let label = 'Download for macOS';
+    let asset = 'dmg';
+
+    if (/Win/i.test(platform) || /Windows/i.test(ua)) {
+      os = 'win';
+      label = 'Download for Windows';
+      asset = 'exe';
+    } else if (/Linux/i.test(platform) || /Linux/i.test(ua) || /X11/i.test(ua)) {
+      os = 'linux';
+      label = 'Download for Linux';
+      asset = 'AppImage';
+    } else if (/Mac|iPad|iPhone|iPod/i.test(platform) || /Mac OS X/i.test(ua)) {
+      os = 'mac';
+      label = 'Download for macOS';
+      asset = 'dmg';
+    }
+
+    const primary = document.getElementById('primary-download');
+    const primaryOs = document.getElementById('primary-os');
+    if (primaryOs) primaryOs.textContent = label;
+    if (primary) primary.dataset.os = os;
+
+    document.querySelectorAll('.dl-card').forEach(card => {
+      if (card.dataset.os === os) card.classList.add('suggested');
+    });
+
+    // Try to populate latest version from the GitHub Releases API; fall back silently.
+    fetch('https://api.github.com/repos/Suryanandx/cue/releases/latest')
+      .then(r => r.ok ? r.json() : null)
+      .then(rel => {
+        if (!rel) return;
+        const tag = (rel.tag_name || '').replace(/^v/, '');
+        document.querySelectorAll('.dl-ver').forEach(s => s.textContent = tag || 'latest');
+        // Resolve direct download URL if assets are available
+        const assets = rel.assets || [];
+        function findAsset(suffix) {
+          return assets.find(a => a.name && a.name.toLowerCase().endsWith(suffix.toLowerCase()));
+        }
+        const macA = findAsset('.dmg');
+        const winA = findAsset('.exe');
+        const linA = findAsset('.AppImage');
+        document.querySelectorAll('.dl-card').forEach(card => {
+          const cardOs = card.dataset.os;
+          const a = cardOs === 'mac' ? macA : (cardOs === 'win' ? winA : linA);
+          if (a && a.browser_download_url) card.href = a.browser_download_url;
+        });
+        if (primary) {
+          const a = os === 'mac' ? macA : (os === 'win' ? winA : linA);
+          if (a && a.browser_download_url) primary.href = a.browser_download_url;
+          else                              primary.href = rel.html_url;
+        }
+      })
+      .catch(() => { /* leave fallback links to /releases/latest */ });
+  })();
+</script>
 </body>
 </html>

@@ -19,28 +19,67 @@ const OPENROUTER_PATH = '/api/v1';
 let openRouterKeyCache = null;
 let openRouterWarned = false;
 
+// Persistent config — written by the onboarding wizard, survives app restarts
+function _userConfigPath() {
+  // app.getPath('userData') points to OS-standard per-user app dirs:
+  //   macOS: ~/Library/Application Support/Cue
+  //   Win:   %APPDATA%/Cue
+  //   Linux: ~/.config/Cue
+  try { return path.join(app.getPath('userData'), '.env'); } catch (_) { return null; }
+}
+
+function _readEnvFile(envPath) {
+  if (!envPath || !fs.existsSync(envPath)) return {};
+  const out = {};
+  try {
+    const lines = fs.readFileSync(envPath, 'utf8').split(/\r?\n/);
+    for (const line of lines) {
+      const m = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*)\s*$/);
+      if (!m) continue;
+      let v = m[2] || '';
+      if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+        v = v.slice(1, -1);
+      }
+      out[m[1]] = v.trim();
+    }
+  } catch (_) {}
+  return out;
+}
+
+function _writeEnvFile(envPath, kv) {
+  if (!envPath) return false;
+  try {
+    fs.mkdirSync(path.dirname(envPath), { recursive: true });
+    const existing = _readEnvFile(envPath);
+    const merged = { ...existing, ...kv };
+    const lines = Object.entries(merged).map(([k, v]) => `${k}=${String(v).replace(/[\r\n]/g, ' ')}`);
+    fs.writeFileSync(envPath, lines.join('\n') + '\n', { mode: 0o600 });
+    return true;
+  } catch (e) {
+    console.error('[config] write failed', e.message);
+    return false;
+  }
+}
+
 function getOpenRouterApiKey() {
-  if (openRouterKeyCache !== null) return openRouterKeyCache;
+  if (openRouterKeyCache !== null && openRouterKeyCache !== '') return openRouterKeyCache;
+  // 1) env var (highest precedence — for power users / CI)
   if (process.env.OPENROUTER_API_KEY) {
     openRouterKeyCache = process.env.OPENROUTER_API_KEY.trim();
     return openRouterKeyCache;
   }
-  try {
-    const envPath = path.join(__dirname, '.env');
-    if (fs.existsSync(envPath)) {
-      const lines = fs.readFileSync(envPath, 'utf8').split(/\r?\n/);
-      for (const line of lines) {
-        const m = line.match(/^\s*OPENROUTER_API_KEY\s*=\s*(.*)\s*$/);
-        if (!m) continue;
-        let v = m[1] || '';
-        if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
-          v = v.slice(1, -1);
-        }
-        openRouterKeyCache = v.trim();
-        return openRouterKeyCache;
-      }
-    }
-  } catch (_) {}
+  // 2) user config in app data dir (where the onboarding wizard saves)
+  const userEnv = _readEnvFile(_userConfigPath());
+  if (userEnv.OPENROUTER_API_KEY) {
+    openRouterKeyCache = userEnv.OPENROUTER_API_KEY;
+    return openRouterKeyCache;
+  }
+  // 3) repo-local .env (dev only)
+  const localEnv = _readEnvFile(path.join(__dirname, '.env'));
+  if (localEnv.OPENROUTER_API_KEY) {
+    openRouterKeyCache = localEnv.OPENROUTER_API_KEY;
+    return openRouterKeyCache;
+  }
   openRouterKeyCache = '';
   return openRouterKeyCache;
 }
@@ -558,6 +597,93 @@ ipcMain.handle('ollama:profile', (_, { name }) => {
 ipcMain.handle('win:minimize', () => mainWindow?.minimize());
 ipcMain.handle('win:hide',     () => mainWindow?.hide());
 ipcMain.handle('win:pin',  (_, on) => mainWindow?.setAlwaysOnTop(on));
+// ─── Config IPC for onboarding ────────────────────────────────
+ipcMain.handle('config:get', () => {
+  const userEnv = _readEnvFile(_userConfigPath());
+  return {
+    onboarded: !!userEnv.CUE_ONBOARDED,
+    hasOpenRouter: !!getOpenRouterApiKey(),
+    userEnvPath: _userConfigPath(),
+  };
+});
+
+ipcMain.handle('config:set-key', (_, { provider, value }) => {
+  const v = String(value || '').trim();
+  if (provider === 'openrouter') {
+    const ok = _writeEnvFile(_userConfigPath(), { OPENROUTER_API_KEY: v });
+    if (ok) {
+      openRouterKeyCache = v; // refresh runtime cache so the next call uses the new key
+      openRouterWarned = false;
+    }
+    return { ok };
+  }
+  return { ok: false, error: `unknown provider: ${provider}` };
+});
+
+ipcMain.handle('config:test-openrouter', async (_, { key }) => {
+  const k = String(key || '').trim();
+  if (!k) return { ok: false, error: 'missing key' };
+  return new Promise(resolve => {
+    const req = https.request({
+      hostname: 'openrouter.ai',
+      path: '/api/v1/auth/key',
+      method: 'GET',
+      headers: { Authorization: `Bearer ${k}` },
+    }, res => {
+      let body = '';
+      res.on('data', c => body += c);
+      res.on('end', () => {
+        if (res.statusCode === 200) {
+          try {
+            const data = JSON.parse(body);
+            resolve({ ok: true, data });
+          } catch (_) {
+            resolve({ ok: true });
+          }
+        } else if (res.statusCode === 401) {
+          resolve({ ok: false, error: 'Key rejected (401). Double-check at openrouter.ai/keys.' });
+        } else {
+          resolve({ ok: false, error: `OpenRouter returned ${res.statusCode}` });
+        }
+      });
+    });
+    req.on('error', e => resolve({ ok: false, error: e.message }));
+    req.setTimeout(8000, () => { req.destroy(); resolve({ ok: false, error: 'timeout' }); });
+    req.end();
+  });
+});
+
+ipcMain.handle('config:test-ollama', async () => {
+  return new Promise(resolve => {
+    const req = http.request({
+      hostname: OLLAMA_HOST,
+      port: OLLAMA_PORT,
+      path: '/api/tags',
+      method: 'GET',
+    }, res => {
+      let body = '';
+      res.on('data', c => body += c);
+      res.on('end', () => {
+        if (res.statusCode === 200) {
+          try {
+            const data = JSON.parse(body);
+            resolve({ ok: true, models: (data.models || []).map(m => m.name) });
+          } catch (e) { resolve({ ok: false, error: 'Bad response from Ollama' }); }
+        } else {
+          resolve({ ok: false, error: `Ollama returned ${res.statusCode}` });
+        }
+      });
+    });
+    req.on('error', e => resolve({ ok: false, error: 'Ollama not running. Install at ollama.com/download.' }));
+    req.setTimeout(4000, () => { req.destroy(); resolve({ ok: false, error: 'Ollama timeout' }); });
+    req.end();
+  });
+});
+
+ipcMain.handle('config:mark-onboarded', () => {
+  return { ok: _writeEnvFile(_userConfigPath(), { CUE_ONBOARDED: '1' }) };
+});
+
 ipcMain.handle('win:resize', (_, { width, height }) => {
   if (!mainWindow) return;
   const w = Math.max(360, Math.min(1600, Number(width) || 420));

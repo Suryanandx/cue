@@ -5,9 +5,31 @@
 Cue is a Cluely-class overlay that listens to your meetings, understands the
 context, and feeds you the right line — without sending your audio, transcripts,
 or knowledge base to anyone you didn't choose. Bring your own model: any
-OpenRouter endpoint, any local Ollama. Bring your own voice: optional Coqui TTS
-voice cloning. Pick your privacy posture: 100% local, fully cloud, or anywhere
-in between.
+OpenRouter endpoint, any local Ollama. Pick your privacy posture: 100% local,
+fully cloud, or anywhere in between.
+
+## Download (recommended)
+
+Just want the app? Grab the right binary, paste your OpenRouter key into the
+onboarding wizard on first launch, and you're set in under a minute.
+
+| Platform | File | Notes |
+|---|---|---|
+| **macOS** (Apple Silicon + Intel) | [Cue-x.y.z.dmg](https://github.com/Suryanandx/cue/releases/latest) | Drag to Applications, open, paste key. |
+| **Windows** 10/11 | [Cue-Setup-x.y.z.exe](https://github.com/Suryanandx/cue/releases/latest) | NSIS installer with shortcuts. |
+| **Linux** (x64 + arm64) | [Cue-x.y.z.AppImage](https://github.com/Suryanandx/cue/releases/latest) | `chmod +x` and run. `.deb` also available. |
+
+Or browse all artifacts on the [latest release](https://github.com/Suryanandx/cue/releases/latest).
+
+The first launch shows an onboarding wizard:
+1. Welcome
+2. Pick a model provider — **OpenRouter** (paste your key from
+   [openrouter.ai/keys](https://openrouter.ai/keys)) or **Ollama** (point at
+   your local daemon)
+3. Test the connection
+4. Done — `⌘ Enter` from anywhere triggers the overlay
+
+## Power-user install (CLI + daemon)
 
 ```
 pip install cue

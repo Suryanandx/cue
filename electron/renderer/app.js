@@ -149,6 +149,9 @@ function init() {
   bindLayoutPicker();
   bindLayoutHotkeys();
 
+  // First-launch onboarding (shows only if no provider configured)
+  maybeShowOnboarding();
+
   // Reuse global shortcut for chat dictation (speech-to-text)
   window.cue.onListen(() => toggleDictation());
 
@@ -1421,6 +1424,141 @@ function timeAgo(ts) {
   if (s < 3600) return Math.floor(s/60)+'m';
   if (s < 86400) return Math.floor(s/3600)+'h';
   return Math.floor(s/86400)+'d';
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Onboarding wizard — first-launch / no-provider flow
+// ═══════════════════════════════════════════════════════════════════
+async function maybeShowOnboarding() {
+  if (!window.cue || !window.cue.config) return;
+  let cfg;
+  try { cfg = await window.cue.config.get(); } catch (_) { return; }
+
+  // Skip if user already finished onboarding AND has at least one provider
+  if (cfg.onboarded && cfg.hasOpenRouter) return;
+  // If the user has any provider working, mark onboarded silently (covers env-var users)
+  if (cfg.hasOpenRouter) {
+    await window.cue.config.markOnboarded();
+    return;
+  }
+
+  // Show onboarding
+  const overlay = document.getElementById('onboard');
+  if (!overlay) return;
+  overlay.style.display = 'flex';
+  bindOnboarding();
+}
+
+function bindOnboarding() {
+  const overlay = document.getElementById('onboard');
+  if (!overlay) return;
+
+  const steps = overlay.querySelectorAll('.onboard-step');
+  const show = (name) => {
+    steps.forEach(s => s.style.display = (s.dataset.step === name) ? 'block' : 'none');
+  };
+  show('welcome');
+
+  const $$o = (id) => document.getElementById(id);
+
+  $$o('onboard-next-1').onclick = () => show('provider');
+  $$o('onboard-back-2').onclick = () => show('welcome');
+
+  // Skip — user dismisses, but keep wizard available via settings later
+  $$o('onboard-skip').onclick = () => { overlay.style.display = 'none'; };
+
+  overlay.querySelectorAll('.provider-card').forEach(card => {
+    card.onclick = () => {
+      const p = card.dataset.provider;
+      if (p === 'openrouter') show('openrouter');
+      else if (p === 'ollama') { show('ollama'); checkOllama(); }
+    };
+  });
+
+  $$o('onboard-back-3').onclick = () => show('provider');
+  $$o('onboard-back-4').onclick = () => show('provider');
+
+  // OpenRouter — show/hide
+  const orInput = $$o('onboard-or-key');
+  $$o('onboard-or-toggle').onclick = () => {
+    orInput.type = (orInput.type === 'password') ? 'text' : 'password';
+  };
+
+  // OpenRouter — test + save
+  $$o('onboard-or-test').onclick = async () => {
+    const key = orInput.value.trim();
+    const status = $$o('onboard-or-status');
+    if (!key.startsWith('sk-or-')) {
+      status.textContent = 'Keys start with sk-or-… check the format.';
+      status.className = 'onboard-status error';
+      return;
+    }
+    status.textContent = 'Testing key…';
+    status.className = 'onboard-status busy';
+    try {
+      const r = await window.cue.config.testOpenRouter(key);
+      if (!r.ok) {
+        status.textContent = r.error || 'Test failed';
+        status.className = 'onboard-status error';
+        return;
+      }
+      const saved = await window.cue.config.setKey('openrouter', key);
+      if (!saved.ok) {
+        status.textContent = 'Saved test ok, but failed to write key file.';
+        status.className = 'onboard-status error';
+        return;
+      }
+      status.textContent = '✓ Key saved. Routing through OpenRouter.';
+      status.className = 'onboard-status success';
+      // Refresh the renderer's model list so the new key surfaces
+      try { await window.ollama.refresh(); } catch (_) {}
+      setTimeout(() => show('done'), 700);
+    } catch (e) {
+      status.textContent = 'Unexpected error: ' + e.message;
+      status.className = 'onboard-status error';
+    }
+  };
+
+  // Ollama — recheck + continue
+  async function checkOllama() {
+    const dot = $$o('onboard-ol-dot');
+    const txt = $$o('onboard-ol-text');
+    const models = $$o('onboard-ol-models');
+    const cont = $$o('onboard-ol-continue');
+    dot.className = 'onboard-status-dot checking';
+    txt.textContent = 'Checking 127.0.0.1:11434…';
+    models.textContent = '';
+    cont.disabled = true;
+    try {
+      const r = await window.cue.config.testOllama();
+      if (r.ok) {
+        dot.className = 'onboard-status-dot online';
+        txt.textContent = 'Ollama running';
+        if (r.models && r.models.length) {
+          models.textContent = r.models.slice(0, 3).join(' · ') + (r.models.length > 3 ? ` +${r.models.length - 3}` : '');
+        } else {
+          models.textContent = 'no models — run `ollama pull llama3`';
+        }
+        cont.disabled = false;
+      } else {
+        dot.className = 'onboard-status-dot offline';
+        txt.textContent = r.error || 'Ollama not reachable';
+        cont.disabled = false; // still allow continue, they may add a model later
+      }
+    } catch (e) {
+      dot.className = 'onboard-status-dot offline';
+      txt.textContent = 'Connection failed';
+    }
+  }
+  $$o('onboard-ol-recheck').onclick = checkOllama;
+  $$o('onboard-ol-continue').onclick = () => show('done');
+
+  $$o('onboard-finish').onclick = async () => {
+    await window.cue.config.markOnboarded();
+    overlay.style.display = 'none';
+    try { await window.ollama.refresh(); } catch (_) {}
+    showToast('Welcome to Cue', 'success');
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════

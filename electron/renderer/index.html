@@ -360,6 +360,135 @@
   <button class="ctx-item danger" id="ctx-delete">Delete session</button>
 </div>
 
+<!-- ═══════════════ ONBOARDING WIZARD ═══════════════════════════════════
+     Shown on first launch when no provider is configured. -->
+<div class="onboard-overlay" id="onboard" style="display:none">
+  <div class="onboard-card">
+
+    <!-- STEP 1: Welcome -->
+    <div class="onboard-step" data-step="welcome">
+      <div class="onboard-mark">c<span class="onboard-blink"></span></div>
+      <h1 class="onboard-h1">Welcome to <span class="accent">Cue</span></h1>
+      <p class="onboard-lead">
+        Open-source meeting assistant. Stealth overlay invisible to screen-share.
+        Bring your own model. Your data never leaves the machine unless you say so.
+      </p>
+      <div class="onboard-tag-row">
+        <span class="onboard-tag">apache 2.0</span>
+        <span class="onboard-tag">stealth on</span>
+        <span class="onboard-tag">local first</span>
+      </div>
+      <div class="onboard-actions">
+        <button class="onboard-primary" id="onboard-next-1">Connect a model →</button>
+        <a href="https://github.com/Suryanandx/cue" target="_blank" rel="noopener" class="onboard-link">github</a>
+      </div>
+    </div>
+
+    <!-- STEP 2: Pick provider -->
+    <div class="onboard-step" data-step="provider" style="display:none">
+      <div class="onboard-progress">
+        <span class="dot active"></span><span class="dot"></span><span class="dot"></span>
+      </div>
+      <h2 class="onboard-h2">Pick a model provider.</h2>
+      <p class="onboard-lead-sm">
+        You can change this any time. Pick both if you want.
+      </p>
+
+      <div class="provider-cards">
+        <button class="provider-card" data-provider="openrouter">
+          <div class="provider-head">
+            <span class="provider-glyph">OR</span>
+            <span class="provider-tag">CLOUD · 200+ MODELS</span>
+          </div>
+          <h3>OpenRouter</h3>
+          <p>One API key, every frontier model. Claude, GPT-4o, Llama, Gemini, free tiers. Best quality. Pay per token.</p>
+          <div class="provider-foot">
+            <span class="provider-cta">paste API key →</span>
+          </div>
+        </button>
+
+        <button class="provider-card" data-provider="ollama">
+          <div class="provider-head">
+            <span class="provider-glyph">OL</span>
+            <span class="provider-tag">LOCAL · ZERO COST</span>
+          </div>
+          <h3>Ollama</h3>
+          <p>Models run on your machine. No API key. No cost. Slower than cloud but completely private. Great for notetakers.</p>
+          <div class="provider-foot">
+            <span class="provider-cta">connect local →</span>
+          </div>
+        </button>
+      </div>
+
+      <div class="onboard-actions onboard-actions-row">
+        <button class="onboard-secondary" id="onboard-back-2">← back</button>
+        <button class="onboard-skip" id="onboard-skip">Skip for now</button>
+      </div>
+    </div>
+
+    <!-- STEP 3a: OpenRouter key -->
+    <div class="onboard-step" data-step="openrouter" style="display:none">
+      <div class="onboard-progress">
+        <span class="dot done"></span><span class="dot active"></span><span class="dot"></span>
+      </div>
+      <h2 class="onboard-h2">Paste your <span class="accent">OpenRouter</span> key.</h2>
+      <p class="onboard-lead-sm">
+        Get one free at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener" class="onboard-link-inline">openrouter.ai/keys</a>. Stored in <code>~/.cue/.env</code>, never sent anywhere except OpenRouter when you ask a question.
+      </p>
+      <div class="onboard-input-wrap">
+        <input type="password" id="onboard-or-key" class="onboard-input" placeholder="sk-or-v1-..." autocomplete="off" spellcheck="false">
+        <button class="onboard-eye" id="onboard-or-toggle" type="button" title="show/hide">👁</button>
+      </div>
+      <div class="onboard-status" id="onboard-or-status"></div>
+      <div class="onboard-actions onboard-actions-row">
+        <button class="onboard-secondary" id="onboard-back-3">← back</button>
+        <button class="onboard-primary" id="onboard-or-test">Test &amp; save →</button>
+      </div>
+    </div>
+
+    <!-- STEP 3b: Ollama -->
+    <div class="onboard-step" data-step="ollama" style="display:none">
+      <div class="onboard-progress">
+        <span class="dot done"></span><span class="dot active"></span><span class="dot"></span>
+      </div>
+      <h2 class="onboard-h2">Connect to <span class="accent">Ollama</span>.</h2>
+      <p class="onboard-lead-sm">
+        Cue talks to a local Ollama daemon at <code>127.0.0.1:11434</code>. If it's running, you're good. If not, install it from <a href="https://ollama.com/download" target="_blank" rel="noopener" class="onboard-link-inline">ollama.com/download</a> and run <code>ollama pull llama3</code>.
+      </p>
+
+      <div class="onboard-status-card" id="onboard-ol-card">
+        <span class="onboard-status-dot" id="onboard-ol-dot"></span>
+        <span class="onboard-status-text" id="onboard-ol-text">checking…</span>
+        <span class="onboard-status-models" id="onboard-ol-models"></span>
+      </div>
+
+      <div class="onboard-actions onboard-actions-row">
+        <button class="onboard-secondary" id="onboard-back-4">← back</button>
+        <button class="onboard-primary" id="onboard-ol-recheck">Recheck</button>
+        <button class="onboard-primary" id="onboard-ol-continue">Continue →</button>
+      </div>
+    </div>
+
+    <!-- STEP 4: Done -->
+    <div class="onboard-step" data-step="done" style="display:none">
+      <div class="onboard-progress">
+        <span class="dot done"></span><span class="dot done"></span><span class="dot active"></span>
+      </div>
+      <div class="onboard-checkmark">✓</div>
+      <h2 class="onboard-h2">All set.</h2>
+      <p class="onboard-lead-sm">
+        Press <span class="kbd-inline">⌘ Enter</span> any time to ask a question.
+        Use <span class="kbd-inline">⌘1-9</span> to switch templates.
+        <span class="kbd-inline">⌘⇧H</span> toggles stealth.
+      </p>
+      <div class="onboard-actions">
+        <button class="onboard-primary" id="onboard-finish">Start using Cue →</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
 <script src="ollama.js"></script>
 <script src="agents.js"></script>
 <script src="resume.js"></script>

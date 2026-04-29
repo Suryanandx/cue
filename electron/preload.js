@@ -35,6 +35,13 @@ contextBridge.exposeInMainWorld('cue', {
     prepare:   () => ipcRenderer.invoke('audio:prepare'),
     openPrivacy: (tab) => ipcRenderer.invoke('audio:open-privacy', { tab })
   },
+  config: {
+    get:    ()          => ipcRenderer.invoke('config:get'),
+    setKey: (provider, value) => ipcRenderer.invoke('config:set-key', { provider, value }),
+    testOpenRouter: (key) => ipcRenderer.invoke('config:test-openrouter', { key }),
+    testOllama:     ()    => ipcRenderer.invoke('config:test-ollama'),
+    markOnboarded:  ()    => ipcRenderer.invoke('config:mark-onboarded')
+  },
   pickResume:   ()         => ipcRenderer.invoke('pick:resume'),
   parseResume:  (p) => ipcRenderer.invoke('parse:resume', typeof p === 'string' ? { filePath: p } : p),
   parseAttachment: (p) => ipcRenderer.invoke('parse:attachment', p || {}),

@@ -6,7 +6,11 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron .",
-    "build": "electron-builder"
+    "build": "electron-builder",
+    "build:mac": "electron-builder --mac",
+    "build:win": "electron-builder --win",
+    "build:linux": "electron-builder --linux",
+    "release": "electron-builder --publish always"
   },
   "homepage": "https://cue.valthrax.com",
   "repository": {
@@ -17,12 +21,74 @@
   "build": {
     "appId": "com.valthrax.cue",
     "productName": "Cue",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "extract-helpers.js",
+      "kb-engine.js",
+      "renderer/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      { "from": "../cue/agents/builtins", "to": "agents-builtins" }
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Suryanandx",
+        "repo": "cue"
+      }
+    ],
     "mac": {
       "category": "public.app-category.productivity",
+      "icon": "build/icon.icns",
+      "target": [
+        { "target": "dmg", "arch": ["arm64", "x64"] },
+        { "target": "zip", "arch": ["arm64", "x64"] }
+      ],
       "extendInfo": {
         "NSScreenCaptureUsageDescription": "Cue uses screen and audio capture when you start listening so it can process meeting or system sound. Allow Screen Recording in System Settings if prompted.",
-        "NSMicrophoneUsageDescription": "Cue listens to your microphone when you start a session so it can transcribe and respond."
-      }
+        "NSMicrophoneUsageDescription": "Cue listens to your microphone when you start a session so it can transcribe and respond.",
+        "LSUIElement": false
+      },
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "identity": null
+    },
+    "dmg": {
+      "title": "Cue ${version}",
+      "icon": "build/icon.icns",
+      "iconSize": 128,
+      "contents": [
+        { "x": 130, "y": 220 },
+        { "x": 410, "y": 220, "type": "link", "path": "/Applications" }
+      ]
+    },
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Cue"
+    },
+    "linux": {
+      "icon": "build/icon.png",
+      "category": "Office",
+      "target": [
+        { "target": "AppImage", "arch": ["x64", "arm64"] },
+        { "target": "deb",      "arch": ["x64"] }
+      ]
     }
   },
   "devDependencies": {
