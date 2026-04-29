@@ -375,6 +375,299 @@ def start() -> None:
 
 # ──────────────────────────  health  ────────────────────────── #
 
+# ──────────────────────────  practice (mock interview TUI)  ────────────────────────── #
+
+@cli.command()
+@click.argument("agent", required=False)
+def practice(agent: Optional[str]) -> None:
+    """Mock interview / practice session in the terminal.
+
+    Pick an agent (default: interview), and the agent will roleplay the
+    interviewer asking questions. You answer in plain text. Useful for
+    behavioral, sales, or coding-interview practice without a meeting.
+    """
+    cfg = CueConfig.load()
+    store = AgentStore()
+    slug = agent or "interview"
+    try:
+        a = store.get(slug)
+    except KeyError:
+        raise click.ClickException(f"Agent not found: {slug}")
+
+    interviewer_prompt = (
+        "You are now ROLE-REVERSED: act as the interviewer. Ask the candidate "
+        "questions appropriate for the agent's domain (e.g. behavioral STAR, "
+        "system design, coding, sales discovery). Ask ONE question at a time. "
+        "After the candidate answers, evaluate briefly (one line) and ask the "
+        "next question. Calibrate difficulty to the answer quality."
+    )
+    base_system = a.system_prompt + "\n\n---\n" + interviewer_prompt
+    history: list[ChatMessage] = [
+        ChatMessage(role="system", content=base_system),
+        ChatMessage(role="user", content="Begin. Ask your first question."),
+    ]
+
+    console.print(Panel.fit(
+        f"[yellow]Practice mode[/] · {a.name}\n"
+        f"Type your answers · [cyan]Ctrl-D[/] to end · [cyan]/skip[/] for next q · [cyan]/grade[/] for feedback",
+        border_style="yellow",
+    ))
+
+    async def run_turn() -> None:
+        async for ev in route(
+            a.model, a.fallback, history, cfg,
+            temperature=a.temperature, max_tokens=a.max_tokens,
+        ):
+            if ev.type == "token":
+                sys.stdout.write(ev.content)
+                sys.stdout.flush()
+            elif ev.type == "error":
+                console.print(f"\n[red]error:[/] {ev.error}")
+                return
+            elif ev.type == "done":
+                console.print("")
+
+    full = []
+
+    def stream_collect():
+        async def go():
+            buf = []
+            async for ev in route(
+                a.model, a.fallback, history, cfg,
+                temperature=a.temperature, max_tokens=a.max_tokens,
+            ):
+                if ev.type == "token":
+                    sys.stdout.write(ev.content)
+                    sys.stdout.flush()
+                    buf.append(ev.content)
+                elif ev.type == "error":
+                    console.print(f"\n[red]error:[/] {ev.error}")
+                    return ""
+                elif ev.type == "done":
+                    console.print("")
+                    return "".join(buf)
+            return "".join(buf)
+        return asyncio.run(go())
+
+    console.print("[dim]interviewer ▸[/]")
+    reply = stream_collect()
+    if reply:
+        history.append(ChatMessage(role="assistant", content=reply))
+
+    while True:
+        try:
+            answer = click.prompt("\nyou ▸", default="", show_default=False)
+        except (EOFError, click.exceptions.Abort):
+            console.print("\n[dim]session ended[/]")
+            break
+        if not answer.strip():
+            continue
+        if answer.strip() == "/skip":
+            history.append(ChatMessage(role="user", content="(skipped) Ask the next question, harder."))
+        elif answer.strip() == "/grade":
+            history.append(ChatMessage(role="user", content="Grade the entire session so far. List 3 strengths, 3 gaps, 3 things to practice."))
+        else:
+            history.append(ChatMessage(role="user", content=answer))
+        console.print("\n[dim]interviewer ▸[/]")
+        reply = stream_collect()
+        if reply:
+            history.append(ChatMessage(role="assistant", content=reply))
+
+
+# ──────────────────────────  listen (live transcript preview)  ────────────────────────── #
+
+@cli.command()
+@click.option("--agent", "-a", default=None, help="Agent slug. Default: configured default agent.")
+def listen(agent: Optional[str]) -> None:
+    """Live listening mode in the terminal.
+
+    Prints transcript chunks as they arrive from the daemon's STT endpoint.
+    For v0.1 this is a thin stub that polls the daemon — real-time wiring
+    lands when the STT engine ships in 0.2.
+    """
+    cfg = CueConfig.load()
+    base = f"http://{cfg.daemon.bind}:{cfg.daemon.port}"
+    try:
+        h = httpx.get(f"{base}/v1/health", timeout=2)
+    except httpx.HTTPError:
+        raise click.ClickException(f"daemon not running at {base}. Run [cue daemon start].")
+
+    info = h.json()
+    if not info.get("providers", {}).get("openrouter") and not info.get("providers", {}).get("ollama"):
+        console.print("[yellow]warning:[/] no providers configured. Listening will work but answers will fail.")
+
+    slug = agent or cfg.default_agent
+    console.print(Panel.fit(
+        f"[green]●[/] listening · agent={slug} · daemon={base}\n"
+        f"[dim]Ctrl-C to stop · STT engine: {info.get('stt_engine')}[/]",
+        border_style="green",
+    ))
+    console.print(
+        "[dim]STT engine wiring lands in 0.2. For now use the Electron overlay or "
+        "pipe transcripts in via [cue ask][/]."
+    )
+
+
+# ──────────────────────────  session (transcripts + answers)  ────────────────────────── #
+
+@cli.group()
+def session() -> None:
+    """Browse past sessions (transcripts + answers)."""
+
+
+@session.command("list")
+def session_list() -> None:
+    from cue.config import SESSIONS_DIR
+    SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
+    rows = sorted(SESSIONS_DIR.glob("*.json"), reverse=True)
+    if not rows:
+        console.print("[dim]no sessions yet[/]")
+        return
+    t = Table(box=None, show_header=True, header_style="bold yellow", padding=(0, 2))
+    t.add_column("id")
+    t.add_column("created")
+    t.add_column("path", overflow="fold")
+    for p in rows:
+        ts = p.stat().st_mtime
+        from datetime import datetime
+        t.add_row(p.stem, datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M"), str(p))
+    console.print(t)
+
+
+@session.command("show")
+@click.argument("session_id")
+def session_show(session_id: str) -> None:
+    from cue.config import SESSIONS_DIR
+    path = SESSIONS_DIR / f"{session_id}.json"
+    if not path.exists():
+        raise click.ClickException(f"session {session_id} not found")
+    import json
+    data = json.loads(path.read_text("utf-8"))
+    console.print(Panel.fit(
+        Markdown(f"# Session {session_id}\n\n```json\n{json.dumps(data, indent=2)[:4000]}\n```"),
+        border_style="yellow",
+    ))
+
+
+@session.command("export")
+@click.argument("session_id")
+@click.option("--output", "-o", default=None, help="Output file (default: stdout)")
+def session_export(session_id: str, output: Optional[str]) -> None:
+    from cue.config import SESSIONS_DIR
+    path = SESSIONS_DIR / f"{session_id}.json"
+    if not path.exists():
+        raise click.ClickException(f"session {session_id} not found")
+    content = path.read_text("utf-8")
+    if output:
+        from pathlib import Path
+        Path(output).write_text(content, "utf-8")
+        console.print(f"[green]✓[/] exported to {output}")
+    else:
+        sys.stdout.write(content)
+
+
+# ──────────────────────────  repl (interactive shell)  ────────────────────────── #
+
+@cli.command()
+@click.option("--agent", "-a", default=None, help="Agent slug. Default: configured default agent.")
+def repl(agent: Optional[str]) -> None:
+    """Interactive Q&A shell. Multi-turn conversation in the terminal.
+
+    Commands inside the REPL:
+      /agent <slug>   switch agents
+      /model <spec>   override model for this session
+      /reset          clear conversation history
+      /save <name>    save the conversation to ~/.cue/sessions
+      /quit           exit
+    """
+    cfg = CueConfig.load()
+    store = AgentStore()
+    slug = agent or cfg.default_agent
+    try:
+        a = store.get(slug)
+    except KeyError:
+        raise click.ClickException(f"Agent not found: {slug}")
+
+    history: list[ChatMessage] = []
+    if a.system_prompt:
+        history.append(ChatMessage(role="system", content=a.system_prompt))
+
+    model_override = None
+
+    console.print(Panel.fit(
+        f"[yellow]REPL[/] · {a.name} · {a.model}\n"
+        f"[dim]/agent · /model · /reset · /save · /quit[/]",
+        border_style="yellow",
+    ))
+
+    while True:
+        try:
+            user_in = click.prompt("▸", default="", show_default=False)
+        except (EOFError, click.exceptions.Abort):
+            console.print("\n[dim]bye[/]")
+            break
+        if not user_in.strip():
+            continue
+        cmd = user_in.strip()
+        if cmd == "/quit":
+            break
+        if cmd == "/reset":
+            history = [ChatMessage(role="system", content=a.system_prompt)] if a.system_prompt else []
+            console.print("[dim]history cleared[/]")
+            continue
+        if cmd.startswith("/agent "):
+            new_slug = cmd.split(maxsplit=1)[1].strip()
+            try:
+                a = store.get(new_slug)
+                history = [ChatMessage(role="system", content=a.system_prompt)] if a.system_prompt else []
+                console.print(f"[green]✓[/] agent → {a.name}")
+            except KeyError:
+                console.print(f"[red]agent not found: {new_slug}[/]")
+            continue
+        if cmd.startswith("/model "):
+            model_override = cmd.split(maxsplit=1)[1].strip()
+            console.print(f"[green]✓[/] model → {model_override}")
+            continue
+        if cmd.startswith("/save "):
+            name = cmd.split(maxsplit=1)[1].strip()
+            from cue.config import SESSIONS_DIR
+            import json
+            from datetime import datetime
+            SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
+            path = SESSIONS_DIR / f"{name}.json"
+            path.write_text(json.dumps({
+                "id": name,
+                "agent": a.slug,
+                "model": model_override or a.model,
+                "saved_at": datetime.now().isoformat(),
+                "messages": [{"role": m.role, "content": m.content} for m in history],
+            }, indent=2), "utf-8")
+            console.print(f"[green]✓[/] saved {path}")
+            continue
+
+        history.append(ChatMessage(role="user", content=user_in))
+
+        async def run() -> str:
+            buf = []
+            async for ev in route(
+                model_override or a.model, a.fallback, history, cfg,
+                temperature=a.temperature, max_tokens=a.max_tokens,
+            ):
+                if ev.type == "token":
+                    sys.stdout.write(ev.content); sys.stdout.flush()
+                    buf.append(ev.content)
+                elif ev.type == "error":
+                    console.print(f"\n[red]error:[/] {ev.error}")
+                    return ""
+                elif ev.type == "done":
+                    console.print("")
+            return "".join(buf)
+
+        reply = asyncio.run(run())
+        if reply:
+            history.append(ChatMessage(role="assistant", content=reply))
+
+
 @cli.command()
 def doctor() -> None:
     """Diagnose providers, paths, and agent state."""

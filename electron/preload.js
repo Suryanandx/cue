@@ -27,7 +27,8 @@ contextBridge.exposeInMainWorld('cue', {
     minimize: ()    => ipcRenderer.invoke('win:minimize'),
     hide:     ()    => ipcRenderer.invoke('win:hide'),
     pin:      (on)  => ipcRenderer.invoke('win:pin', on),
-    ghost:    ()    => ipcRenderer.invoke('win:ghost')
+    ghost:    ()    => ipcRenderer.invoke('win:ghost'),
+    resize:   (w, h) => ipcRenderer.invoke('win:resize', { width: w, height: h })
   },
   audio: {
     sources:   () => ipcRenderer.invoke('audio:sources'),

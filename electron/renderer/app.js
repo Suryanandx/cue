@@ -143,6 +143,12 @@ function init() {
   bindCtxMenu();
   renderAttachmentTray();
 
+  // New: Cluely-style pickers
+  bindAgentPicker();
+  bindModelPicker();
+  bindLayoutPicker();
+  bindLayoutHotkeys();
+
   // Reuse global shortcut for chat dictation (speech-to-text)
   window.cue.onListen(() => toggleDictation());
 
@@ -180,7 +186,8 @@ function bindWindow() {
 // ── Sidebar ───────────────────────────────────────────────────
 function bindSidebar() {
   E.btnToggleSidebar.addEventListener('click', () => {
-    E.sidebar.classList.toggle('collapsed');
+    E.sidebar.classList.toggle('open');
+    E.btnToggleSidebar.classList.toggle('active', E.sidebar.classList.contains('open'));
   });
   E.btnNewChat.addEventListener('click', () => {
     const id = window.chatStore.createChat('New Chat');
@@ -735,6 +742,11 @@ async function pickAndAddFiles() {
   await ingestFiles(r.filePaths);
 }
 
+// Per-session KB upload errors. Persisted in panel until user dismisses.
+window._kbErrors = window._kbErrors || [];
+const SUPPORTED_KB_EXT = ['.pdf','.docx','.txt','.md','.csv','.xlsx','.xls','.png','.jpg','.jpeg','.webp','.gif'];
+const MAX_KB_FILE_BYTES = 50 * 1024 * 1024; // 50 MB
+
 async function ingestFiles(filePaths) {
   const wrap = $('kb-progress-wrap');
   const bar  = $('kb-progress-bar');
@@ -742,14 +754,31 @@ async function ingestFiles(filePaths) {
 
   if (!wrap) { toast('Open the Knowledge Base panel first', 'warn'); return; }
 
+  // Pre-flight validation: catch unsupported types and oversized files BEFORE upload
+  const valid = [];
+  for (const fp of filePaths) {
+    const name = path.basename(fp).toLowerCase();
+    const ext = '.' + (name.split('.').pop() || '');
+    if (!SUPPORTED_KB_EXT.includes(ext)) {
+      window._kbErrors.push({ name, error: `Unsupported type: ${ext}. Try PDF / DOCX / TXT / XLSX / image.`, ts: Date.now() });
+      continue;
+    }
+    valid.push(fp);
+  }
+
+  if (window._kbErrors.length) renderKBPanel();
+  if (valid.length === 0) {
+    toast('No supported files', 'err');
+    return;
+  }
+
   wrap.style.display = 'flex';
   bar.style.width    = '0%';
-  txt.textContent    = 'Preparing...';
-
-  // Show files as pending immediately
+  txt.textContent    = 'Preparing…';
   renderKBPanel();
 
-  for (const fp of filePaths) {
+  let okCount = 0, failCount = 0;
+  for (const fp of valid) {
     const name = path.basename(fp);
     bar.style.width  = '5%';
     txt.textContent  = 'Starting: ' + name;
@@ -760,7 +789,7 @@ async function ingestFiles(filePaths) {
         if (d.filePath !== fp) return;
         const pct = d.pct || 0;
         bar.style.width  = Math.max(5, pct) + '%';
-        txt.textContent  = name + ': ' + (d.status || '...');
+        txt.textContent  = name + ': ' + (d.status || '…');
       });
       window.cue.kb.addFile('default', fp).then(r => {
         window.cue.kb.clearListeners();
@@ -769,19 +798,28 @@ async function ingestFiles(filePaths) {
     });
 
     if (!result.ok) {
-      toast('Failed: ' + name + ' — ' + result.error, 'err');
+      failCount++;
+      const reason = (result.error || 'unknown error').replace(/^Error:\s*/i, '');
+      window._kbErrors.push({ name, path: fp, error: reason, ts: Date.now() });
+      // Refresh panel so the error row shows up between files
+      renderKBPanel();
+    } else {
+      okCount++;
     }
   }
 
-  bar.style.width  = '100%';
-  txt.textContent  = filePaths.length + ' file' + (filePaths.length > 1 ? 's' : '') + ' indexed';
+  bar.style.width = '100%';
+  txt.textContent = okCount > 0
+    ? `${okCount} ok` + (failCount ? ` · ${failCount} failed (see list)` : '')
+    : `${failCount} failed (see list)`;
 
-  // Refresh the file list from main process
   await window.kbStore.refresh();
   renderKBPanel();
 
-  setTimeout(() => { wrap.style.display = 'none'; }, 2000);
-  toast('Knowledge base updated', 'ok');
+  setTimeout(() => { wrap.style.display = 'none'; }, 2400);
+  if (okCount > 0 && failCount === 0) toast('Knowledge base updated', 'ok');
+  else if (okCount === 0)              toast('All uploads failed', 'err');
+  else                                 toast(`${okCount} indexed · ${failCount} failed`, 'warn');
 }
 
 function renderKBPanel() {
@@ -791,22 +829,48 @@ function renderKBPanel() {
 
   const files   = window.kbStore.files;
   const enabled = window.kbStore.enabled;
+  const errors  = window._kbErrors || [];
 
   // Status bar
   if (files.length === 0) {
-    stats.textContent = 'No files indexed';
+    stats.textContent = errors.length
+      ? `No files indexed · ${errors.length} failed`
+      : 'No files indexed';
   } else {
     const chunks = files.reduce((s, f) => s + f.chunks, 0);
-    stats.textContent = files.length + ' file' + (files.length>1?'s':'') + ' · ' + chunks + ' chunks' + (!enabled ? ' (disabled)' : '');
+    const errSuffix = errors.length ? ` · ${errors.length} failed` : '';
+    stats.textContent = files.length + ' file' + (files.length>1?'s':'') + ' · ' + chunks + ' chunks' + (!enabled ? ' (disabled)' : '') + errSuffix;
+  }
+
+  // Error rows pinned at the top of the file list
+  let errorHtml = '';
+  if (errors.length) {
+    errorHtml = errors.map((e, i) => `
+      <div class="kb-file-item kb-error-row" data-err-idx="${i}">
+        <span class="kb-file-icon" style="color:var(--danger)">⚠</span>
+        <div class="kb-file-info" style="min-width:0;flex:1">
+          <div class="kb-file-name" style="color:var(--danger)" title="${x(e.name)}">${x(e.name)}</div>
+          <div class="kb-file-meta" style="color:var(--text-dim);white-space:normal;line-height:1.4">${x(e.error)}</div>
+        </div>
+        ${e.path ? `<button type="button" class="kb-file-retry" data-path="${x(e.path)}" data-err-idx="${i}" title="Retry">↻</button>` : ''}
+        <button type="button" class="kb-file-dismiss" data-err-idx="${i}" title="Dismiss">×</button>
+      </div>
+    `).join('');
   }
 
   // File list
-  if (files.length === 0) {
-    list.innerHTML = '<div style="padding:12px;font-size:11px;color:var(--fg3);text-align:center">Drop files above to build your knowledge base</div>';
+  if (files.length === 0 && !errors.length) {
+    list.innerHTML = '<div style="padding:12px;font-size:11px;color:var(--text-mute);text-align:center">Drop files above to build your knowledge base</div>';
     return;
   }
+  if (files.length === 0) {
+    list.innerHTML = errorHtml;
+    bindKBErrorRows();
+    return;
+  }
+  // fall through to render files (errorHtml prepended below)
 
-  list.innerHTML = files.map(f => {
+  list.innerHTML = errorHtml + files.map(f => {
     const name    = f.source || f.file.split('/').pop();
     const icon    = window.kbStore.getIcon(name);
     const isIdxing= window.kbStore.indexing.has(f.file);
@@ -820,6 +884,8 @@ function renderKBPanel() {
       <button type="button" class="kb-file-del" data-path="${x(f.file)}" title="Remove" aria-label="Remove file"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
     </div>`;
   }).join('');
+
+  bindKBErrorRows();
 
   list.querySelectorAll('.kb-file-del').forEach(btn => {
     btn.addEventListener('click', async () => {
@@ -1357,6 +1423,383 @@ function timeAgo(ts) {
   return Math.floor(s/86400)+'d';
 }
 
-// ── Start ─────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
+// KB error row bindings (retry + dismiss)
+// ═══════════════════════════════════════════════════════════════════
+function bindKBErrorRows() {
+  document.querySelectorAll('.kb-file-dismiss').forEach(btn => {
+    btn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const idx = parseInt(btn.dataset.errIdx, 10);
+      if (Number.isInteger(idx)) {
+        window._kbErrors.splice(idx, 1);
+        renderKBPanel();
+      }
+    });
+  });
+  document.querySelectorAll('.kb-file-retry').forEach(btn => {
+    btn.addEventListener('click', async (ev) => {
+      ev.stopPropagation();
+      const fp = btn.dataset.path;
+      const idx = parseInt(btn.dataset.errIdx, 10);
+      if (!fp) return;
+      // Remove this error and retry the single file
+      if (Number.isInteger(idx)) window._kbErrors.splice(idx, 1);
+      renderKBPanel();
+      await ingestFiles([fp]);
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Cluely-style pickers — agent, model, layout
+// ═══════════════════════════════════════════════════════════════════
+
+const AGENT_TEMPLATES = [
+  { slug: 'auto',      icon: '⌨', name: 'Auto',       desc: 'Smart-detect from screen + audio context. Branches into the right specialist.', model: 'claude-3.5-sonnet', hotkey: '⌘1' },
+  { slug: 'coding',    icon: '⌘', name: 'Coding',     desc: 'Technical problems. Code first, no preamble. Comments on every non-trivial line.', model: 'claude-3.5-sonnet', hotkey: '⌘2' },
+  { slug: 'meeting',   icon: '○', name: 'Meeting',    desc: 'Meeting co-pilot. Real-time suggestions, follow-ups, recaps.', model: 'gpt-4o', hotkey: '⌘3' },
+  { slug: 'interview', icon: '▴', name: 'Interview',  desc: 'Live interview co-pilot. Behavioral, coding, system-design — answers in the right shape.', model: 'claude-3.5-sonnet', hotkey: '⌘4' },
+  { slug: 'sales',     icon: '$', name: 'Sales',      desc: 'MEDDPICC nudges, next questions, what not to say.', model: 'gpt-4o-mini', hotkey: '⌘5' },
+  { slug: 'email',     icon: '✉', name: 'Email',      desc: 'Draft messages. Returns ready-to-send content in a code block.', model: 'gpt-4o-mini', hotkey: '⌘6' },
+  { slug: 'writing',   icon: '✎', name: 'Writing',    desc: 'Longer-form content: blog posts, docs, proposals.', model: 'claude-3.5-sonnet', hotkey: '⌘7' },
+  { slug: 'research',  icon: '⌕', name: 'Research',   desc: 'Explore a topic, summarize sources, surface what matters.', model: 'claude-3.5-sonnet', hotkey: '⌘8' },
+  { slug: 'math',      icon: '∑', name: 'Math',       desc: 'Step-by-step. LaTeX rendering. Confident answer first.', model: 'claude-3.5-sonnet', hotkey: '⌘9' },
+  { slug: 'custom',    icon: '+', name: 'Custom',     desc: 'Blank starting template. Edit the system prompt to make it yours.', model: 'gpt-4o-mini', hotkey: '' },
+];
+
+const $$ = (id) => document.getElementById(id);
+
+// Generic popover machinery — close on outside click, close on Esc
+function _openPopover(id, anchor) {
+  document.querySelectorAll('.popover').forEach(p => { if (p.id !== id) p.style.display = 'none'; });
+  document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+  const el = $$(id);
+  if (!el) return;
+  el.style.display = 'flex';
+  if (anchor) anchor.classList.add('active');
+
+  const onDoc = (ev) => {
+    if (!el.contains(ev.target) && !(anchor && anchor.contains(ev.target))) {
+      el.style.display = 'none';
+      if (anchor) anchor.classList.remove('active');
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onEsc);
+    }
+  };
+  const onEsc = (ev) => {
+    if (ev.key === 'Escape') {
+      el.style.display = 'none';
+      if (anchor) anchor.classList.remove('active');
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onEsc);
+    }
+  };
+  // Defer registration so the click that opens it doesn't immediately close
+  setTimeout(() => {
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onEsc);
+  }, 0);
+}
+
+function _closePopovers() {
+  document.querySelectorAll('.popover').forEach(p => p.style.display = 'none');
+  document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+}
+
+// ── Agent picker ───────────────────────────────────────────────
+function bindAgentPicker() {
+  const pill = $$('agent-pill');
+  const picker = $$('agent-picker');
+  const list = $$('agent-list');
+  if (!pill || !picker || !list) return;
+
+  function renderList() {
+    const current = E.agentSel.value || 'auto';
+    list.innerHTML = AGENT_TEMPLATES.map(a => `
+      <div class="agent-row ${a.slug === current ? 'selected' : ''}" data-agent="${a.slug}">
+        <span class="agent-glyph">${a.icon}</span>
+        <span class="agent-info">
+          <span class="agent-name">${a.name}</span>
+          <span class="agent-desc">${a.desc}</span>
+        </span>
+        <span class="agent-meta">
+          ${a.model.split('/').pop()}
+          ${a.hotkey ? `<br><span class="agent-key">${a.hotkey}</span>` : ''}
+        </span>
+      </div>
+    `).join('');
+    list.querySelectorAll('.agent-row').forEach(row => {
+      row.addEventListener('click', () => {
+        const slug = row.dataset.agent;
+        selectAgent(slug);
+        _closePopovers();
+      });
+    });
+  }
+
+  function syncPill() {
+    const current = E.agentSel.value || 'auto';
+    const a = AGENT_TEMPLATES.find(x => x.slug === current) || AGENT_TEMPLATES[0];
+    $$('agent-pill-icon').textContent = a.icon;
+    $$('agent-pill-text').textContent = a.name;
+  }
+
+  function selectAgent(slug) {
+    E.agentSel.value = slug;
+    E.agentSel.dispatchEvent(new Event('change'));
+    syncPill();
+  }
+
+  pill.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    if (picker.style.display === 'flex') {
+      _closePopovers();
+    } else {
+      renderList();
+      _openPopover('agent-picker', pill);
+    }
+  });
+
+  // Keep pill in sync if agent changes elsewhere (loadChat, settings save)
+  E.agentSel.addEventListener('change', syncPill);
+  syncPill();
+
+  // Hotkeys ⌘1..⌘9 for first 9 agents
+  document.addEventListener('keydown', (ev) => {
+    if (!(ev.metaKey || ev.ctrlKey) || ev.shiftKey || ev.altKey) return;
+    const n = parseInt(ev.key, 10);
+    if (Number.isInteger(n) && n >= 1 && n <= 9) {
+      const target = AGENT_TEMPLATES[n - 1];
+      if (target) {
+        ev.preventDefault();
+        selectAgent(target.slug);
+        showToast(`Template → ${target.name}`);
+      }
+    }
+  });
+}
+
+// ── Model picker ───────────────────────────────────────────────
+const POPULAR_OPENROUTER_MODELS = [
+  { id: 'anthropic/claude-3.5-sonnet', tag: 'flagship' },
+  { id: 'anthropic/claude-3.5-haiku',  tag: 'fast' },
+  { id: 'openai/gpt-4o',                tag: 'flagship' },
+  { id: 'openai/gpt-4o-mini',           tag: 'cheap' },
+  { id: 'openai/o1-mini',               tag: 'reasoning' },
+  { id: 'google/gemini-2.0-flash-001',  tag: 'fast' },
+  { id: 'meta-llama/llama-3.1-8b-instruct:free',   tag: 'free' },
+  { id: 'mistralai/mistral-7b-instruct:free',      tag: 'free' },
+  { id: 'qwen/qwen-2.5-coder-32b-instruct',        tag: 'coding' },
+  { id: 'deepseek/deepseek-chat',                  tag: 'cheap' },
+];
+
+function bindModelPicker() {
+  const pill = $$('model-pill');
+  const picker = $$('model-picker');
+  if (!pill || !picker) return;
+
+  const orList = $$('openrouter-list');
+  const olList = $$('ollama-list');
+  const orCount = $$('or-count');
+  const olCount = $$('ol-count');
+  const search = $$('model-search');
+
+  let cachedOR = POPULAR_OPENROUTER_MODELS;
+  let cachedOL = [];
+
+  // Strip the `openrouter/` routing prefix for display only
+  function _displayName(value) {
+    if (!value) return 'no model';
+    const stripped = value.replace(/^openrouter\//, '');
+    // For namespaced ids, show the last segment for compactness
+    return stripped.length > 28 ? stripped.split('/').pop() : stripped;
+  }
+
+  function syncPill() {
+    const m = window.ollama.getModel() || E.modelSel.value;
+    const text = $$('model-pill-text');
+    if (m) {
+      text.textContent = _displayName(m);
+      pill.classList.add('online');
+    } else {
+      const def = AGENT_TEMPLATES.find(a => a.slug === (E.agentSel.value || 'auto'));
+      text.textContent = def ? def.model : 'no model';
+      pill.classList.remove('online');
+    }
+  }
+
+  // For OpenRouter models we MUST prefix `openrouter/` so main.js routes the
+  // chat to OpenRouter (see main.js: `model.startsWith('openrouter/')`).
+  // For Ollama models the raw tag is used as-is.
+  function pickModel(rawId, source) {
+    const finalId = source === 'openrouter' ? `openrouter/${rawId}` : rawId;
+    // Update both the hidden compat <select> AND the canonical client state
+    E.modelSel.value = finalId;
+    if (window.ollama && window.ollama.setModel) window.ollama.setModel(finalId);
+    E.modelSel.dispatchEvent(new Event('change'));
+    syncPill();
+    _closePopovers();
+    showToast(`Model → ${_displayName(finalId)}`);
+  }
+
+  function render(filter = '') {
+    const f = filter.toLowerCase();
+    const cur = window.ollama.getModel() || E.modelSel.value;
+
+    const orItems = cachedOR.filter(m => m.id.toLowerCase().includes(f));
+    orCount.textContent = orItems.length;
+    orList.innerHTML = orItems.length === 0
+      ? `<div class="model-row empty">no matches</div>`
+      : orItems.map(m => `
+        <div class="model-row ${`openrouter/${m.id}` === cur ? 'selected' : ''}" data-model="${m.id}" data-source="openrouter">
+          <span class="model-name">${m.id}</span>
+          <span class="model-tag ${m.tag === 'free' ? 'model-free' : ''}">${m.tag}</span>
+        </div>`).join('');
+
+    const olItems = cachedOL.filter(m => m.toLowerCase().includes(f));
+    olCount.textContent = olItems.length;
+    if (olItems.length === 0 && cachedOL.length === 0) {
+      olList.innerHTML = `<div class="model-row empty">ollama not running · run \`ollama serve\`</div>`;
+    } else if (olItems.length === 0) {
+      olList.innerHTML = `<div class="model-row empty">no matches</div>`;
+    } else {
+      olList.innerHTML = olItems.map(m => `
+        <div class="model-row ${m === cur ? 'selected' : ''}" data-model="${m}" data-source="ollama">
+          <span class="model-name">${m}</span>
+          <span class="model-tag">local</span>
+        </div>`).join('');
+    }
+
+    [...orList.querySelectorAll('.model-row[data-model]'),
+     ...olList.querySelectorAll('.model-row[data-model]')].forEach(row => {
+      row.addEventListener('click', () => pickModel(row.dataset.model, row.dataset.source));
+    });
+  }
+
+  // Pull live Ollama tags + add any openrouter:free models main.js already enumerates
+  async function refreshLists() {
+    try {
+      const r = await window.cue.ollama.models();
+      if (r && r.ok && Array.isArray(r.models)) {
+        // Local Ollama (no `openrouter/` prefix)
+        cachedOL = r.models
+          .filter(m => !String(m.name || '').startsWith('openrouter/'))
+          .map(m => m.name);
+        // Free OpenRouter routes already enumerated by main.js — strip prefix and merge
+        // with the popular hardcoded list, dedupe by id
+        const fromMain = r.models
+          .filter(m => String(m.name || '').startsWith('openrouter/'))
+          .map(m => ({ id: m.name.replace(/^openrouter\//, ''), tag: 'free' }));
+        const merged = [...POPULAR_OPENROUTER_MODELS];
+        for (const x of fromMain) {
+          if (!merged.find(y => y.id === x.id)) merged.push(x);
+        }
+        cachedOR = merged;
+      }
+    } catch (_) { /* keep cached defaults */ }
+  }
+
+  pill.addEventListener('click', async (ev) => {
+    ev.stopPropagation();
+    if (picker.style.display === 'flex') {
+      _closePopovers();
+    } else {
+      await refreshLists();
+      render(search.value || '');
+      _openPopover('model-picker', pill);
+      setTimeout(() => search.focus(), 30);
+    }
+  });
+
+  search.addEventListener('input', () => render(search.value));
+  search.addEventListener('click', (ev) => ev.stopPropagation());
+
+  // Sync pill when other code changes the model
+  E.modelSel.addEventListener('change', syncPill);
+  E.agentSel.addEventListener('change', syncPill);
+  syncPill();
+}
+
+// ── Layout picker ──────────────────────────────────────────────
+const LAYOUTS = {
+  compact:  { width: 420, height: 540 },
+  standard: { width: 620, height: 680 },
+  expanded: { width: 920, height: 720 },
+};
+
+function applyLayout(layout) {
+  const dims = LAYOUTS[layout] || LAYOUTS.compact;
+  if (window.cue.win.resize) {
+    window.cue.win.resize(dims.width, dims.height);
+  }
+  localStorage.setItem('cue-layout', layout);
+  document.documentElement.dataset.layout = layout;
+  // Auto-open sidebar in standard/expanded
+  if (layout !== 'compact' && E.sidebar && !E.sidebar.classList.contains('open')) {
+    E.sidebar.classList.add('open');
+  }
+  // Close sidebar in compact
+  if (layout === 'compact' && E.sidebar) {
+    E.sidebar.classList.remove('open');
+  }
+  // Mark active option
+  document.querySelectorAll('.layout-option').forEach(b => {
+    b.classList.toggle('active', b.dataset.layout === layout);
+  });
+  showToast(`Layout → ${layout}`);
+}
+
+function bindLayoutPicker() {
+  const btn = $$('btn-layout');
+  const picker = $$('layout-picker');
+  if (!btn || !picker) return;
+  btn.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    if (picker.style.display === 'flex') {
+      _closePopovers();
+    } else {
+      const cur = localStorage.getItem('cue-layout') || 'compact';
+      document.querySelectorAll('.layout-option').forEach(b => {
+        b.classList.toggle('active', b.dataset.layout === cur);
+      });
+      _openPopover('layout-picker', btn);
+    }
+  });
+  picker.querySelectorAll('.layout-option').forEach(opt => {
+    opt.addEventListener('click', () => {
+      applyLayout(opt.dataset.layout);
+      _closePopovers();
+    });
+  });
+  // Restore saved layout
+  const saved = localStorage.getItem('cue-layout');
+  if (saved && saved !== 'compact') applyLayout(saved);
+}
+
+function bindLayoutHotkeys() {
+  document.addEventListener('keydown', (ev) => {
+    if (!(ev.metaKey || ev.ctrlKey) || ev.shiftKey || ev.altKey) return;
+    if (ev.key === '0') { ev.preventDefault(); applyLayout('compact'); }
+    if (ev.key === '9') { ev.preventDefault(); applyLayout('standard'); }
+    if (ev.key === '8') { ev.preventDefault(); applyLayout('expanded'); }
+  });
+}
+
+// ── Toast helper ───────────────────────────────────────────────
+let _toastTimer;
+function showToast(text, type = '') {
+  document.querySelectorAll('.toast').forEach(t => t.remove());
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = text;
+  document.body.appendChild(el);
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.remove(), 2400);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Start
+// ═══════════════════════════════════════════════════════════════════
 if (document.readyState==='loading') document.addEventListener('DOMContentLoaded', init);
 else init();

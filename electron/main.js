@@ -558,6 +558,13 @@ ipcMain.handle('ollama:profile', (_, { name }) => {
 ipcMain.handle('win:minimize', () => mainWindow?.minimize());
 ipcMain.handle('win:hide',     () => mainWindow?.hide());
 ipcMain.handle('win:pin',  (_, on) => mainWindow?.setAlwaysOnTop(on));
+ipcMain.handle('win:resize', (_, { width, height }) => {
+  if (!mainWindow) return;
+  const w = Math.max(360, Math.min(1600, Number(width) || 420));
+  const h = Math.max(360, Math.min(1200, Number(height) || 540));
+  mainWindow.setSize(w, h, true);
+  return { ok: true, width: w, height: h };
+});
 ipcMain.handle('win:ghost',    () => {
   if (!mainWindow) return 0.97;
   const op = mainWindow.getOpacity() > 0.1 ? 0.05 : 0.97;

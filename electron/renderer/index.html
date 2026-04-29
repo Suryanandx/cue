@@ -13,43 +13,103 @@
 
   <!-- ═══ DRAG HANDLE / TOPBAR ═══════════════════════════════ -->
   <header class="topbar" data-drag>
-    <div class="topbar-left">
-      <button class="icon-btn ghost-btn" id="btn-toggle-sidebar" title="Sessions" data-no-drag>
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    <div class="topbar-left" data-no-drag>
+      <button class="icon-btn" id="btn-toggle-sidebar" title="Sessions">
+        <!-- Phosphor: list -->
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M21 6H3a1 1 0 1 1 0-2h18a1 1 0 0 1 0 2zm0 5H3a1 1 0 0 1 0-2h18a1 1 0 0 1 0 2zm0 5H3a1 1 0 0 1 0-2h18a1 1 0 0 1 0 2zm0 5H3a1 1 0 0 1 0-2h18a1 1 0 0 1 0 2z"/></svg>
       </button>
       <span class="logo-mark" aria-hidden="true">c</span>
-      <span class="logo-name">cue</span>
-      <span class="status-pill" id="ollama-status">offline</span>
+      <button class="pill pill-mode" id="agent-pill" data-no-drag>
+        <span class="pill-icon" id="agent-pill-icon">⌨</span>
+        <span class="pill-text" id="agent-pill-text">Auto</span>
+        <svg class="pill-caret" width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6"><polyline points="3,5 6,8 9,5"/></svg>
+      </button>
     </div>
-    <div class="topbar-mid">
-      <select id="agent-select" class="mode-pill" data-no-drag>
-        <option value="auto">⌨ Auto</option>
-        <option value="coding">⌘ Coding</option>
-        <option value="meeting">○ Meeting</option>
-        <option value="interview">▴ Interview</option>
-        <option value="sales">$ Sales</option>
-        <option value="email">✉ Email</option>
-        <option value="writing">✎ Writing</option>
-        <option value="research">⌕ Research</option>
-        <option value="math">∑ Math</option>
-        <option value="custom">+ Custom</option>
-      </select>
+    <div class="topbar-mid" data-no-drag>
+      <button class="pill pill-model" id="model-pill" title="Active model">
+        <span class="pill-dot" id="model-pill-dot"></span>
+        <span class="pill-text" id="model-pill-text">no model</span>
+        <svg class="pill-caret" width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6"><polyline points="3,5 6,8 9,5"/></svg>
+      </button>
     </div>
     <div class="topbar-right" data-no-drag>
+      <button class="icon-btn" id="btn-layout" title="Layout">
+        <!-- Phosphor: layout -->
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+      </button>
       <button class="icon-btn" id="btn-dictate" title="Listen (⌘L)">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+        <!-- Phosphor: microphone -->
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><line x1="12" y1="18" x2="12" y2="22"/></svg>
       </button>
       <button class="icon-btn" id="btn-ghost" title="Stealth toggle (⌘⇧H)">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+        <!-- Phosphor: eye-slash -->
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 10.6a3 3 0 0 0 4.24 4.24"/><path d="M9.4 5.4A10 10 0 0 1 12 5c5 0 9 4 11 7-.7 1.3-1.8 2.7-3.3 4M6.7 6.7C4.6 8 3 9.7 1 12c2 3 6 7 11 7 1.5 0 2.9-.3 4.2-.8"/></svg>
       </button>
       <button class="icon-btn" id="btn-chat-settings" title="Settings">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <!-- Phosphor: sliders -->
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="9" cy="6" r="2.2" fill="currentColor"/><circle cx="15" cy="12" r="2.2" fill="currentColor"/><circle cx="7" cy="18" r="2.2" fill="currentColor"/></svg>
       </button>
       <button class="icon-btn" id="btn-minimize" title="Minimize">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <!-- Phosphor: minus -->
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
       </button>
     </div>
   </header>
+
+  <!-- HIDDEN COMPAT: keep the original select for app.js to consume on programmatic change -->
+  <select id="agent-select" class="hidden">
+    <option value="auto">Auto</option>
+    <option value="coding">Coding</option>
+    <option value="meeting">Meeting</option>
+    <option value="interview">Interview</option>
+    <option value="sales">Sales</option>
+    <option value="email">Email</option>
+    <option value="writing">Writing</option>
+    <option value="research">Research</option>
+    <option value="math">Math</option>
+    <option value="custom">Custom</option>
+  </select>
+
+  <!-- ═══ AGENT PICKER POPOVER ═══════════════════════════════ -->
+  <div class="popover popover-agent" id="agent-picker" style="display:none">
+    <div class="popover-header">
+      <span class="popover-title">Templates</span>
+      <span class="popover-hint">⌘1-9 to switch</span>
+    </div>
+    <div class="popover-list" id="agent-list"></div>
+  </div>
+
+  <!-- ═══ MODEL PICKER POPOVER ═══════════════════════════════ -->
+  <div class="popover popover-model" id="model-picker" style="display:none">
+    <div class="popover-header">
+      <span class="popover-title">Models</span>
+      <input type="text" class="popover-search" id="model-search" placeholder="Search…">
+    </div>
+    <div class="popover-section-label">openrouter <span class="popover-count" id="or-count">0</span></div>
+    <div class="popover-list" id="openrouter-list"></div>
+    <div class="popover-section-label">ollama (local) <span class="popover-count" id="ol-count">0</span></div>
+    <div class="popover-list" id="ollama-list"></div>
+  </div>
+
+  <!-- ═══ LAYOUT PICKER POPOVER ══════════════════════════════ -->
+  <div class="popover popover-layout" id="layout-picker" style="display:none">
+    <div class="popover-header"><span class="popover-title">Layout</span></div>
+    <button class="layout-option" data-layout="compact">
+      <span class="layout-glyph">▢</span>
+      <span class="layout-info"><b>Compact</b><span>420 × 540 · widget mode</span></span>
+      <span class="kbd">⌘0</span>
+    </button>
+    <button class="layout-option" data-layout="standard">
+      <span class="layout-glyph">▣</span>
+      <span class="layout-info"><b>Standard</b><span>620 × 680 · sessions side</span></span>
+      <span class="kbd">⌘9</span>
+    </button>
+    <button class="layout-option" data-layout="expanded">
+      <span class="layout-glyph">▦</span>
+      <span class="layout-info"><b>Expanded</b><span>920 × 720 · everything</span></span>
+      <span class="kbd">⌘8</span>
+    </button>
+  </div>
 
   <!-- ═══ QUICK ACTIONS BAR ════════════════════════════════════ -->
   <div class="quick-actions">
