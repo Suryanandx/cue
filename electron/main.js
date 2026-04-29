@@ -19,6 +19,14 @@ const OPENROUTER_PATH = '/api/v1';
 let openRouterKeyCache = null;
 let openRouterWarned = false;
 
+/** Short-lived cache so rapid UI polls do not hammer OpenRouter /models. */
+let _orModelsCache = { at: 0, list: null };
+const OR_MODELS_CACHE_MS = 90 * 1000;
+
+function invalidateOpenRouterModelsCache() {
+  _orModelsCache = { at: 0, list: null };
+}
+
 // Persistent config — written by the onboarding wizard, survives app restarts
 function _userConfigPath() {
   // app.getPath('userData') points to OS-standard per-user app dirs:
@@ -163,6 +171,10 @@ function sortOpenRouterEntries(entries) {
 function openRouterGetModels() {
   const key = getOpenRouterApiKey();
   if (!key) return Promise.resolve({ ok: false, models: [], error: 'OPENROUTER_API_KEY missing' });
+  const now = Date.now();
+  if (_orModelsCache.list && now - _orModelsCache.at < OR_MODELS_CACHE_MS) {
+    return Promise.resolve({ ok: true, models: _orModelsCache.list });
+  }
   return new Promise((resolve) => {
     const req = https.request({
       host: OPENROUTER_HOST,
@@ -194,7 +206,9 @@ function openRouterGetModels() {
                 supports_file_analysis: tags.includes('file-analysis')
               };
             });
-          resolve({ ok: true, models: sortOpenRouterEntries(mapped) });
+          const sorted = sortOpenRouterEntries(mapped);
+          _orModelsCache = { at: Date.now(), list: sorted };
+          resolve({ ok: true, models: sorted });
         } catch (e) {
           resolve({ ok: false, models: [], error: e.message });
         }
@@ -550,17 +564,36 @@ let activeStream = null;
 let lastModel    = null;
 let idleTimer    = null;
 
-// Auto-unload model after 5 minutes of no requests (frees RAM)
+function clearIdleTimer() {
+  if (idleTimer) {
+    clearTimeout(idleTimer);
+    idleTimer = null;
+  }
+}
+
+// Auto-unload local weights after idle (timer starts when a chat stream finishes).
 function resetIdleTimer(model) {
-  if (idleTimer) clearTimeout(idleTimer);
+  clearIdleTimer();
   idleTimer = setTimeout(() => {
-    if (model) { unloadModel(model); lastModel = null; }
-  }, 5 * 60 * 1000);   // 5 minutes
+    idleTimer = null;
+    if (model && lastModel === model && !String(model).startsWith('openrouter/')) {
+      unloadModel(model);
+      lastModel = null;
+    }
+  }, 5 * 60 * 1000);   // 5 minutes after last completed / errored request
+}
+
+/** Unload previous local Ollama weights when switching to another tag (frees VRAM/RAM). */
+function unloadPreviousLocalOllamaIfSwitching(nextModel) {
+  if (!lastModel || lastModel === nextModel) return;
+  if (String(lastModel).startsWith('openrouter/')) return;
+  unloadModel(lastModel);
+  clearIdleTimer();
 }
 
 function runOllamaChatStream(model, messages, opts, send, resolve) {
+  unloadPreviousLocalOllamaIfSwitching(model);
   lastModel = model;
-  resetIdleTimer(model);
 
   const brainMode = (opts && opts.brain === 'deep') ? 'deep' : 'balanced';
   const profile = applyBrainProfile(modelProfile(model), brainMode);
@@ -582,8 +615,18 @@ function runOllamaChatStream(model, messages, opts, send, resolve) {
       }
     },
     chunk => send('chat:chunk', chunk),
-    ()    => { activeStream = null; send('chat:done', null); resolve({ ok: true }); },
-    err   => { activeStream = null; send('chat:error', err.message); resolve({ ok: false, error: err.message }); }
+    ()    => {
+      activeStream = null;
+      resetIdleTimer(model);
+      send('chat:done', null);
+      resolve({ ok: true });
+    },
+    err   => {
+      activeStream = null;
+      resetIdleTimer(model);
+      send('chat:error', err.message);
+      resolve({ ok: false, error: err.message });
+    }
   );
 }
 
@@ -609,6 +652,12 @@ ipcMain.handle('ollama:chat', (event, { model, messages, opts }) => {
   if (activeStream) { try { activeStream.destroy(); } catch (_) {} activeStream = null; }
 
   if (String(model || '').startsWith('openrouter/')) {
+    // Cloud path — drop local Ollama weights so VRAM/RAM stay free while using OpenRouter.
+    if (lastModel && !String(lastModel).startsWith('openrouter/')) {
+      unloadModel(lastModel);
+      lastModel = null;
+      clearIdleTimer();
+    }
     return new Promise(resolve => {
       const send = (ch, data) => {
         if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(ch, data);
@@ -645,11 +694,19 @@ ipcMain.handle('ollama:chat', (event, { model, messages, opts }) => {
 ipcMain.handle('ollama:cancel', () => {
   if (activeStream) { try { activeStream.destroy(); } catch (_) {} activeStream = null; }
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('chat:done', null);
+  if (lastModel && !String(lastModel).startsWith('openrouter/')) {
+    resetIdleTimer(lastModel);
+  }
   return { ok: true };
 });
 
 ipcMain.handle('ollama:unload', (_, { name }) => {
-  unloadModel(name || lastModel);
+  const target = name || lastModel;
+  unloadModel(target);
+  if (target && target === lastModel) {
+    lastModel = null;
+    clearIdleTimer();
+  }
   return { ok: true };
 });
 
@@ -717,6 +774,7 @@ ipcMain.handle('config:set-key', (_, { provider, value }) => {
     if (ok) {
       openRouterKeyCache = v; // refresh runtime cache so the next call uses the new key
       openRouterWarned = false;
+      invalidateOpenRouterModelsCache();
     }
     return { ok };
   }
