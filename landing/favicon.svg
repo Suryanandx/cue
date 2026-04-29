@@ -1,5 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="6" fill="#0a0a0a"/>
-  <text x="16" y="22" font-family="serif" font-size="20" font-weight="500" fill="#ededed" text-anchor="middle" font-style="italic">c</text>
-  <circle cx="24" cy="9" r="3" fill="#ff8a3c"/>
+  <rect width="32" height="32" fill="#000000"/>
+  <rect x="1" y="1" width="30" height="30" fill="none" stroke="#00ff8c" stroke-width="1"/>
+  <text x="16" y="22" font-family="ui-monospace,monospace" font-size="18" font-weight="700" fill="#00ff8c" text-anchor="middle" letter-spacing="-0.5">cue</text>
+  <rect x="14" y="6" width="2" height="4" fill="#00ff8c">
+    <animate attributeName="opacity" values="1;0;1" dur="1s" repeatCount="indefinite"/>
+  </rect>
 </svg>
