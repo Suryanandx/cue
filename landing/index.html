@@ -558,18 +558,61 @@
       overflow: hidden;
       box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
       transition: border-color 0.18s, transform 0.18s;
+
+      /* Uniform aspect ratio across the grid — landscape AND portrait shots
+         fit without cropping. The empty space gets filled with a blurred
+         backdrop derived from the image itself (set via JS, see body end). */
+      aspect-ratio: 4 / 3;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
-    .shot:hover .shot-frame {
-      border-color: var(--phos-deep);
-      transform: translateY(-2px);
+    .shot-wide .shot-frame {
+      /* The hero gallery item keeps its natural aspect ratio */
+      aspect-ratio: auto;
+      display: block;
+    }
+    /* Blurred ambient backdrop, derived from the image itself */
+    .shot-frame::before {
+      content: "";
+      position: absolute;
+      inset: -28px;
+      background-image: var(--shot-bg);
+      background-size: cover;
+      background-position: center;
+      filter: blur(32px) saturate(135%) brightness(0.45);
+      z-index: 0;
+      transform: scale(1.1);
     }
     .shot-frame::after {
       content: "";
       position: absolute; inset: 0;
       pointer-events: none;
-      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+      box-shadow:
+        inset 0 0 0 1px rgba(255, 255, 255, 0.03),
+        inset 0 0 60px rgba(0, 0, 0, 0.4);
+      z-index: 2;
     }
-    .shot-frame img { display: block; width: 100%; height: auto; }
+    .shot:hover .shot-frame {
+      border-color: var(--phos-deep);
+      transform: translateY(-2px);
+    }
+    .shot-frame img {
+      position: relative;
+      z-index: 1;
+      display: block;
+      max-width: 100%;
+      max-height: 100%;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6);
+    }
+    .shot-wide .shot-frame img {
+      width: 100%;
+      max-height: none;
+      box-shadow: none;
+    }
     .shot figcaption {
       display: flex;
       flex-direction: column;
@@ -600,16 +643,10 @@
     @media (max-width: 540px) { .onboard-strip { grid-template-columns: 1fr; } }
     .shot-vertical .shot-frame {
       aspect-ratio: 9 / 12;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: linear-gradient(180deg, var(--panel), var(--bg));
     }
     .shot-vertical .shot-frame img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      object-position: center;
+      max-width: 92%;
+      max-height: 92%;
     }
 
     /* HERO CONSOLE — fake terminal session as visual centerpiece */
@@ -1875,6 +1912,21 @@ cue stealth on / off<span class="c">                       &nbsp;screen-capture 
     </div>
   </div>
 </footer>
+
+<script>
+  // Auto-set the blurred backdrop on every gallery frame from its child img.src
+  // so frames render uniform-sized without cropping the actual screenshot.
+  document.querySelectorAll('.shot-frame').forEach(f => {
+    const img = f.querySelector('img');
+    if (!img) return;
+    const apply = () => {
+      const src = img.currentSrc || img.getAttribute('src');
+      if (src) f.style.setProperty('--shot-bg', `url("${src}")`);
+    };
+    if (img.complete) apply();
+    else img.addEventListener('load', apply, { once: true });
+  });
+</script>
 
 <script>
   // OS detection — pick the right primary download CTA
