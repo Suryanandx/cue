@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Tighten renderer security; keeps Mermaid (CDN + wasm), Web Speech (HTTPS), and inline styles used by toasts -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https: wss:; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none';">
+  <title>Cue</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+</head>
+<body>
+<div id="app">
+
+  <!-- ═══ TOPBAR ═══════════════════════════════════════════ -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <button class="icon-btn" id="btn-toggle-sidebar" title="Chats">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <span class="logo-mark" aria-hidden="true">K</span>
+      <span class="logo-name">Cue</span>
+    </div>
+    <div class="topbar-right">
+      <select id="model-select" class="model-select"><option value="">Model...</option></select>
+      <select id="brain-select" class="model-select brain-select" title="Reasoning depth">
+        <option value="balanced">Brain: Balanced</option>
+        <option value="deep">Brain: Deep Think</option>
+      </select>
+      <span id="ollama-status" class="status-badge offline">Offline</span>
+      <div class="divider-v"></div>
+      <button class="icon-btn" id="btn-notes"  title="Notes">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      </button>
+      <button class="icon-btn" id="btn-models" title="Models">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+      </button>
+      <button class="icon-btn" id="btn-resume" title="Resume">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      </button>
+      <button class="icon-btn" id="btn-kb" title="Knowledge Base">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      </button>
+      <div class="divider-v"></div>
+      <button class="icon-btn" id="btn-ghost"   title="Ghost Mode (⌘⇧H)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+      </button>
+      <button class="icon-btn" id="btn-minimize" title="Minimize">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- ═══ LISTEN BANNER ════════════════════════════════════ -->
+  <div class="listen-banner" id="listen-banner" style="display:none">
+    <span class="live-dot"></span>
+    <span id="live-transcript">Listening...</span>
+    <button class="banner-stop" id="banner-stop">Stop</button>
+  </div>
+
+  <!-- ═══ BODY ══════════════════════════════════════════════ -->
+  <div class="body-layout">
+
+    <!-- ── LEFT SIDEBAR: Chat List ── -->
+    <div class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <span class="sidebar-title">Chats</span>
+        <button class="sidebar-new" id="btn-new-chat" title="New chat">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+      </div>
+      <div class="chat-list" id="chat-list"></div>
+    </div>
+
+    <!-- ── MAIN: Chat + Side Pane ── -->
+    <div class="main-layout">
+
+      <!-- Chat area -->
+      <div class="chat-col">
+
+        <!-- Per-chat header bar -->
+        <div class="chat-header-bar" id="chat-header-bar">
+          <div class="chat-header-left">
+            <span id="chat-title-display" class="chat-title-display">New Chat</span>
+          </div>
+          <div class="chat-header-right">
+            <span id="agent-tag" class="agent-tag" style="display:none"></span>
+            <select id="agent-select" class="agent-select-inline">
+              <option value="auto">Auto</option>
+              <option value="aria">Aria — Theory</option>
+              <option value="atlas">Atlas — Design</option>
+              <option value="axel">Axel — DSA</option>
+              <option value="nova">Nova — Resume</option>
+              <option value="sage">Sage — AI / ML &amp; LLMs</option>
+            </select>
+            <button class="icon-btn" id="btn-clear-chat" title="Clear current chat">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+            </button>
+            <button class="icon-btn" id="btn-delete-chat" title="Delete current chat">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+            </button>
+            <!-- Settings gear opens popover -->
+            <button class="icon-btn" id="btn-chat-settings" title="Chat settings">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Settings popover (hidden by default) -->
+        <div class="settings-popover" id="settings-popover" style="display:none">
+          <div class="settings-popover-inner">
+            <div class="settings-row">
+              <label class="settings-label">Chat name</label>
+              <input type="text" id="settings-chat-name" class="settings-input" placeholder="e.g. Google Interview Prep">
+            </div>
+            <div class="settings-row">
+              <label class="settings-label">Tone</label>
+              <select id="settings-tone" class="settings-select">
+                <option value="interview">Interview mode (default)</option>
+                <option value="concise">Concise — bullet points only</option>
+                <option value="detailed">Detailed — full explanations</option>
+                <option value="casual">Casual — like talking to a friend</option>
+                <option value="socratic">Socratic — ask me questions back</option>
+              </select>
+            </div>
+            <div class="settings-row">
+              <label class="settings-label">Context / background</label>
+              <textarea id="settings-context" class="settings-textarea" placeholder="e.g. I'm interviewing for a senior frontend role at a fintech company. Focus on React and system design." rows="3"></textarea>
+            </div>
+            <div class="settings-row">
+              <label class="settings-label">Memory</label>
+              <div class="settings-memory-info" id="settings-memory-info">—</div>
+              <button class="txt-btn" id="btn-clear-memory">Clear memory</button>
+            </div>
+            <div class="settings-actions">
+              <button class="settings-save" id="btn-settings-save">Save</button>
+              <button class="txt-btn"       id="btn-settings-cancel">Cancel</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Messages -->
+        <div class="messages" id="messages"></div>
+
+        <!-- Input -->
+        <div class="input-row">
+          <button type="button" id="btn-attach" class="dictate-btn" title="Attach files/images">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a5.5 5.5 0 0 1-7.78-7.78l9.2-9.19a3.5 3.5 0 0 1 4.95 4.95l-9.2 9.19a1.5 1.5 0 0 1-2.12-2.12l8.48-8.49"/></svg>
+          </button>
+          <div class="input-wrap">
+            <textarea id="chat-input" placeholder="Ask anything... (Enter to send)" rows="1"></textarea>
+            <div id="attachment-tray" class="attachment-tray" style="display:none"></div>
+            <input type="file" id="chat-attachments" accept=".pdf,.doc,.docx,.txt,.md,.csv,.xlsx,.xls,.json,.js,.ts,.py,.java,.go,.rs,.sql,.html,.css,.png,.jpg,.jpeg,.webp,.gif" multiple style="display:none">
+          </div>
+          <button type="button" id="btn-dictate" class="dictate-btn" title="Dictate">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+          </button>
+          <button id="btn-send" class="send-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22,2 15,22 11,13 2,9"/></svg>
+          </button>
+        </div>
+
+        <!-- Memory indicator bar -->
+        <div class="memory-bar" id="memory-bar" style="display:none">
+          <span id="memory-bar-text"></span>
+        </div>
+
+      </div>
+
+      <!-- Right side pane -->
+      <div class="side-col" id="side-col">
+
+        <!-- Notes -->
+        <div class="side-pane" id="pane-notes" style="display:none">
+          <div class="pane-header">
+            <span>Notes</span>
+            <div class="pane-header-actions">
+              <button class="txt-btn" id="btn-copy-notes">Copy</button>
+              <button class="txt-btn" id="btn-clear-notes">Clear</button>
+            </div>
+          </div>
+          <textarea id="notes-area" class="notes-area" placeholder="Notes..."></textarea>
+        </div>
+
+        <!-- Models -->
+        <div class="side-pane" id="pane-models" style="display:none">
+          <div class="pane-header">
+            <span>Models</span>
+            <button class="txt-btn" id="btn-unload-model">Unload RAM</button>
+          </div>
+          <div class="mem-warning" id="mem-warning" style="display:none">
+            <span id="mem-warning-text"></span>
+          </div>
+          <div class="models-installed" id="models-installed"></div>
+          <div class="pull-section">
+            <div class="pull-row">
+              <input type="text" id="pull-input" class="pull-input" placeholder="model name...">
+              <button id="btn-pull" class="pull-btn">Pull</button>
+            </div>
+            <div class="model-chips">
+              <button class="chip" data-model="llama3.2">llama3.2 3B</button>
+              <button class="chip" data-model="mistral">mistral 7B</button>
+              <button class="chip" data-model="qwen2.5-coder:7b">qwen2.5 7B</button>
+              <button class="chip" data-model="gemma3:4b">gemma3 4B</button>
+              <button class="chip" data-model="deepseek-r1:8b">deepseek 8B</button>
+            </div>
+            <div id="pull-progress" class="pull-progress" style="display:none">
+              <div class="pull-track"><div id="pull-bar" class="pull-bar-fill"></div></div>
+              <span id="pull-text" class="pull-text">Downloading...</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Knowledge Base -->
+        <div class="side-pane" id="pane-kb" style="display:none">
+          <div class="pane-header">
+            <span>Knowledge Base</span>
+            <button class="txt-btn" id="btn-kb-add">+ Add Files</button>
+          </div>
+          <!-- KB active indicator -->
+          <div class="kb-status-bar" id="kb-status-bar">
+            <span id="kb-status-text">No files indexed</span>
+            <label class="kb-toggle-label">
+              <input type="checkbox" id="kb-enabled-toggle" checked>
+              <span>Auto-inject</span>
+            </label>
+          </div>
+          <!-- Upload drop zone -->
+          <div class="kb-drop-zone" id="kb-drop-zone">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+            <span>Drop files here or use + Add Files</span>
+            <span class="small-hint">PDF · DOCX · TXT · XLSX · CSV · PNG · JPG</span>
+          </div>
+          <!-- Progress bar (hidden by default) -->
+          <div id="kb-progress-wrap" class="kb-progress-wrap" style="display:none">
+            <div class="kb-progress-bar-track"><div id="kb-progress-bar" class="kb-progress-bar-fill"></div></div>
+            <span id="kb-progress-text" class="kb-progress-text">Processing...</span>
+          </div>
+          <!-- File list -->
+          <div class="kb-file-list" id="kb-file-list"></div>
+        </div>
+
+        <!-- Resume -->
+        <div class="side-pane" id="pane-resume" style="display:none">
+          <div class="pane-header">
+            <span>Resume / CV</span>
+            <div class="pane-header-actions">
+              <button class="txt-btn" id="btn-analyse-resume">Analyse</button>
+              <button class="txt-btn" id="btn-practice-resume">Practice</button>
+            </div>
+          </div>
+          <div id="upload-zone" class="upload-zone">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+            <p>Drop resume or click</p>
+            <span class="small-hint">PDF &middot; DOCX &middot; TXT</span>
+            <input type="file" id="resume-file" accept=".pdf,.doc,.docx,.txt,.md">
+          </div>
+          <div id="resume-loaded" style="display:none">
+            <div class="resume-bar">
+              <span id="resume-name" class="resume-name"></span>
+              <button class="txt-btn" id="btn-remove-resume">Remove</button>
+            </div>
+            <textarea id="resume-text" class="resume-text" placeholder="Resume text (editable)..."></textarea>
+          </div>
+          <div id="resume-analysis-box" class="resume-analysis-box" style="display:none"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Context menu for chat items (right-click) -->
+<div class="ctx-menu" id="ctx-menu" style="display:none">
+  <button class="ctx-item" id="ctx-rename">Rename</button>
+  <button class="ctx-item" id="ctx-clear">Clear messages</button>
+  <button class="ctx-item danger" id="ctx-delete">Delete chat</button>
+</div>
+
+<script src="ollama.js"></script>
+<script src="agents.js"></script>
+<script src="resume.js"></script>
+<script src="chat-store.js"></script>
+<script src="kb-store.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

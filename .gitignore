@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Cue runtime
+*.log
+*.pid
+
+# Node
+node_modules/
+.pnpm-debug.log*
+electron/dist/
+
+# Astro / landing
+landing/dist/
+landing/.astro/
+
+# Vercel
+.vercel
+
+# OS
+.DS_Store
+.env
+.env.local

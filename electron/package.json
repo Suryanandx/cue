@@ -1,0 +1,38 @@
+{
+  "name": "cue-gui",
+  "version": "0.1.0",
+  "description": "Cue — open-source meeting assistant overlay. Cluely-class UI, your model, your data.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "build": "electron-builder"
+  },
+  "homepage": "https://cue.valthrax.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Suryanandx/cue.git"
+  },
+  "license": "Apache-2.0",
+  "build": {
+    "appId": "com.valthrax.cue",
+    "productName": "Cue",
+    "mac": {
+      "category": "public.app-category.productivity",
+      "extendInfo": {
+        "NSScreenCaptureUsageDescription": "Cue uses screen and audio capture when you start listening so it can process meeting or system sound. Allow Screen Recording in System Settings if prompted.",
+        "NSMicrophoneUsageDescription": "Cue listens to your microphone when you start a session so it can transcribe and respond."
+      }
+    }
+  },
+  "devDependencies": {
+    "electron": "^34.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "dependencies": {
+    "mammoth": "^1.8.0",
+    "pdf-parse": "^1.1.1",
+    "vectra": "^0.14.0",
+    "xlsx": "^0.18.5"
+  }
+}

@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cue — open-source meeting assistant</title>
+  <meta name="description" content="Open-source Cluely alternative. Cluely-class overlay. Your model, your data. Apache-2.0. By the Valthrax studio." />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <meta property="og:title" content="Cue — open-source meeting assistant" />
+  <meta property="og:description" content="Cluely-class overlay, your model, your data. Apache-2.0." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://cue.valthrax.com" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,400&family=Inter+Tight:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --ink: #f4ede2;
+      --ink-dim: #b9b0a3;
+      --ink-mute: #7d7568;
+      --paper: #14110d;
+      --paper-2: #1c1812;
+      --paper-3: #251f17;
+      --rule: #2e2820;
+      --rule-soft: #221d16;
+      --sun: #ff8a3c;
+      --sun-deep: #e0651a;
+      --sun-soft: #f3b97a;
+      --leaf: #8eaf6f;
+      --serif: "Fraunces", Georgia, serif;
+      --sans: "Inter Tight", -apple-system, BlinkMacSystemFont, sans-serif;
+      --mono: "JetBrains Mono", ui-monospace, monospace;
+    }
+
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--sans);
+      font-size: 16px;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+      background-image:
+        radial-gradient(ellipse at 20% 0%, rgba(255,138,60,0.06) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 100%, rgba(255,138,60,0.03) 0%, transparent 50%);
+      background-attachment: fixed;
+    }
+    body::before {
+      content: "";
+      position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.95 0 0 0 0 0.9 0 0 0 0 0.85 0 0 0 0.04 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+      opacity: 0.45; pointer-events: none; z-index: 1; mix-blend-mode: overlay;
+    }
+    main, header, footer { position: relative; z-index: 2; }
+
+    a { color: inherit; text-decoration: none; }
+
+    .wrap {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 0 40px;
+    }
+    @media (max-width: 720px) { .wrap { padding: 0 20px; } }
+
+    /* NAV */
+    nav {
+      position: sticky; top: 0; z-index: 50;
+      background: rgba(20, 17, 13, 0.74);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--rule-soft);
+    }
+    .nav-inner {
+      display: flex; align-items: center; justify-content: space-between;
+      height: 60px;
+    }
+    .brand {
+      display: flex; align-items: center; gap: 12px;
+      font-family: var(--serif);
+      font-size: 22px;
+      font-style: italic;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+    }
+    .brand-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--sun);
+      box-shadow: 0 0 12px rgba(255, 138, 60, 0.6);
+    }
+    .nav-links {
+      display: flex; gap: 28px; align-items: center;
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--ink-dim);
+    }
+    .nav-links a { transition: color 0.2s; }
+    .nav-links a:hover { color: var(--ink); }
+    .nav-cta {
+      padding: 8px 14px;
+      border: 1px solid var(--rule);
+      color: var(--ink) !important;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .nav-cta:hover { border-color: var(--sun); background: rgba(255, 138, 60, 0.06); }
+    @media (max-width: 720px) { .nav-links a:not(.nav-cta) { display: none; } }
+
+    /* HERO */
+    .hero {
+      padding: 120px 0 90px;
+      border-bottom: 1px solid var(--rule);
+    }
+    @media (max-width: 720px) { .hero { padding: 60px 0 56px; } }
+
+    .hero-meta {
+      display: flex; align-items: center; gap: 18px;
+      font-family: var(--mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      color: var(--ink-mute);
+      margin-bottom: 36px;
+      flex-wrap: wrap;
+    }
+    .hero-meta .pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 5px 12px;
+      border: 1px solid var(--rule);
+      border-radius: 100px;
+    }
+    .live-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--leaf);
+      box-shadow: 0 0 10px var(--leaf);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+
+    h1.headline {
+      font-family: var(--serif);
+      font-weight: 300;
+      font-size: clamp(44px, 8.5vw, 124px);
+      line-height: 0.95;
+      letter-spacing: -0.04em;
+      max-width: 960px;
+    }
+    h1.headline em {
+      font-style: italic;
+      color: var(--sun-soft);
+      font-weight: 400;
+    }
+
+    .hero-sub {
+      margin-top: 36px;
+      max-width: 580px;
+      font-size: 18px;
+      color: var(--ink-dim);
+      line-height: 1.55;
+    }
+    .hero-sub a { color: var(--ink); border-bottom: 1px solid var(--rule); }
+    .hero-sub a:hover { color: var(--sun); border-color: var(--sun); }
+
+    .hero-actions {
+      margin-top: 40px;
+      display: flex; gap: 12px; flex-wrap: wrap;
+    }
+    .install {
+      display: inline-flex; align-items: center; gap: 14px;
+      padding: 13px 18px;
+      background: var(--paper-2);
+      border: 1px solid var(--rule);
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--ink);
+    }
+    .install .prompt { color: var(--sun); user-select: none; }
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 13px 22px;
+      background: var(--sun);
+      color: var(--paper);
+      font-family: var(--mono);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+    .btn-primary:hover { background: var(--sun-soft); }
+
+    .hero-stats {
+      margin-top: 80px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      border-top: 1px solid var(--rule);
+      border-bottom: 1px solid var(--rule);
+    }
+    @media (max-width: 720px) { .hero-stats { grid-template-columns: repeat(2,1fr); margin-top: 56px; } }
+    .stat {
+      padding: 26px 28px 26px 24px;
+      border-right: 1px solid var(--rule);
+    }
+    .stat:first-child { padding-left: 0; }
+    .stat:last-child { border-right: none; padding-right: 0; }
+    @media (max-width: 720px) {
+      .stat { padding: 20px 18px; border-bottom: 1px solid var(--rule); }
+      .stat:nth-child(odd) { padding-left: 0; border-right: 1px solid var(--rule); }
+      .stat:nth-child(even) { padding-right: 0; border-right: none; }
+      .stat:nth-last-child(-n+2) { border-bottom: none; }
+    }
+    .stat-num {
+      font-family: var(--serif);
+      font-size: 38px;
+      font-weight: 400;
+      line-height: 1;
+      letter-spacing: -0.03em;
+      display: inline-flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+    .stat-num .small {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--ink-mute);
+      position: relative;
+      top: -0.55em;
+    }
+    .stat-label {
+      margin-top: 10px;
+      font-family: var(--mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      color: var(--ink-mute);
+    }
+
+    /* SECTION */
+    section.section {
+      padding: 110px 0;
+      border-bottom: 1px solid var(--rule);
+    }
+    @media (max-width: 720px) { section.section { padding: 70px 0; } }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: 200px 1fr;
+      gap: 60px;
+      margin-bottom: 60px;
+      align-items: baseline;
+    }
+    @media (max-width: 720px) { .section-head { grid-template-columns: 1fr; gap: 14px; margin-bottom: 36px; } }
+    .eyebrow {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--sun);
+    }
+    .eyebrow .num { color: var(--ink-mute); margin-right: 8px; }
+    h2.title {
+      font-family: var(--serif);
+      font-weight: 300;
+      font-size: clamp(34px, 5vw, 56px);
+      line-height: 1.05;
+      letter-spacing: -0.03em;
+      max-width: 800px;
+    }
+    h2.title em { font-style: italic; color: var(--sun-soft); font-weight: 400; }
+    .sub {
+      margin-top: 18px;
+      color: var(--ink-dim);
+      font-size: 16px;
+      max-width: 580px;
+      line-height: 1.55;
+    }
+
+    /* FEATURES */
+    .features {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--rule);
+      border: 1px solid var(--rule);
+    }
+    @media (max-width: 880px) { .features { grid-template-columns: repeat(2,1fr); } }
+    @media (max-width: 540px) { .features { grid-template-columns: 1fr; } }
+    .feature {
+      background: var(--paper);
+      padding: 30px 28px 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      min-height: 200px;
+    }
+    .feature .num {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      color: var(--sun);
+    }
+    .feature h3 {
+      font-family: var(--serif);
+      font-weight: 400;
+      font-size: 24px;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+    }
+    .feature p {
+      color: var(--ink-dim);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+    .feature p code {
+      font-family: var(--mono);
+      color: var(--sun);
+      font-size: 12px;
+    }
+
+    /* AGENTS TABLE */
+    .agents {
+      border-top: 1px solid var(--rule);
+    }
+    .agents-row {
+      display: grid;
+      grid-template-columns: 56px 220px 1fr 180px;
+      gap: 28px;
+      padding: 22px 0;
+      border-bottom: 1px solid var(--rule);
+      align-items: baseline;
+    }
+    @media (max-width: 720px) {
+      .agents-row {
+        grid-template-columns: 40px 1fr;
+        grid-template-areas: "n name" ". desc" ". model";
+        gap: 6px 14px;
+      }
+      .agents-row .a-num { grid-area: n; }
+      .agents-row .a-name { grid-area: name; }
+      .agents-row .a-desc { grid-area: desc; margin-top: 4px; }
+      .agents-row .a-model { grid-area: model; margin-top: 6px; text-align: left; }
+    }
+    .a-num {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      color: var(--ink-mute);
+    }
+    .a-name {
+      font-family: var(--serif);
+      font-size: 22px;
+      font-weight: 400;
+      letter-spacing: -0.015em;
+    }
+    .a-name em { font-style: italic; color: var(--sun-soft); }
+    .a-desc {
+      color: var(--ink-dim);
+      font-size: 14px;
+      line-height: 1.5;
+      max-width: 440px;
+    }
+    .a-model {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--ink-mute);
+      letter-spacing: 0.04em;
+      text-align: right;
+    }
+
+    /* CODE BLOCK */
+    .code-card {
+      background: var(--paper-2);
+      border: 1px solid var(--rule);
+      overflow: hidden;
+    }
+    .code-card .bar {
+      padding: 10px 16px;
+      background: var(--paper-3);
+      border-bottom: 1px solid var(--rule);
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--ink-mute);
+    }
+    .code-card pre {
+      padding: 20px 22px;
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.85;
+      color: var(--ink);
+      overflow-x: auto;
+    }
+    .code-card .p { color: var(--sun); user-select: none; }
+    .code-card .c { color: var(--ink-mute); }
+
+    .quickstart-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 56px;
+      align-items: start;
+    }
+    @media (max-width: 880px) { .quickstart-grid { grid-template-columns: 1fr; gap: 32px; } }
+
+    .qs-list {
+      display: flex; flex-direction: column;
+      counter-reset: qs;
+    }
+    .qs-list li {
+      list-style: none;
+      counter-increment: qs;
+      padding: 18px 0;
+      border-bottom: 1px solid var(--rule);
+      display: grid;
+      grid-template-columns: 36px 1fr;
+      gap: 16px;
+      align-items: baseline;
+    }
+    .qs-list li:first-child { padding-top: 0; }
+    .qs-list li::before {
+      content: counter(qs, decimal-leading-zero);
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      color: var(--sun);
+    }
+    .qs-list h4 {
+      font-family: var(--serif);
+      font-size: 19px;
+      font-weight: 400;
+      letter-spacing: -0.015em;
+      margin-bottom: 4px;
+    }
+    .qs-list p {
+      font-size: 14px;
+      color: var(--ink-dim);
+      line-height: 1.55;
+    }
+    .qs-list code {
+      font-family: var(--mono);
+      color: var(--sun);
+      font-size: 12.5px;
+    }
+
+    /* ENDPOINTS */
+    .endpoints {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 36px;
+      font-size: 13px;
+    }
+    .endpoints th {
+      text-align: left;
+      font-family: var(--mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      color: var(--ink-mute);
+      padding: 0 16px 14px 0;
+      font-weight: 400;
+      border-bottom: 1px solid var(--rule);
+    }
+    .endpoints td {
+      padding: 14px 16px 14px 0;
+      border-bottom: 1px solid var(--rule);
+      color: var(--ink-dim);
+      vertical-align: middle;
+    }
+    .endpoints .method {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      padding: 3px 8px;
+      border: 1px solid var(--rule);
+      color: var(--sun);
+      display: inline-block;
+    }
+    .endpoints code {
+      font-family: var(--mono);
+      color: var(--ink);
+      font-size: 12px;
+    }
+
+    /* FOOTER */
+    footer {
+      padding: 56px 0 36px;
+      border-top: 1px solid var(--rule);
+    }
+    .foot-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 1fr;
+      gap: 40px;
+      margin-bottom: 50px;
+    }
+    @media (max-width: 720px) { .foot-grid { grid-template-columns: 1fr 1fr; gap: 28px; } }
+    .foot-mark {
+      font-family: var(--serif);
+      font-size: 64px;
+      font-weight: 300;
+      letter-spacing: -0.04em;
+      line-height: 0.95;
+      font-style: italic;
+    }
+    .foot-mark .pop { font-style: normal; color: var(--sun); }
+    .foot-col h4 {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--ink-mute);
+      margin-bottom: 16px;
+      font-weight: 400;
+    }
+    .foot-col a, .foot-col p {
+      display: block;
+      font-size: 14px;
+      color: var(--ink-dim);
+      line-height: 1.7;
+      transition: color 0.2s;
+    }
+    .foot-col a:hover { color: var(--sun); }
+    .foot-bot {
+      padding-top: 22px;
+      border-top: 1px solid var(--rule);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--ink-mute);
+    }
+    @media (max-width: 720px) { .foot-bot { flex-direction: column; gap: 10px; align-items: flex-start; } }
+  </style>
+</head>
+
+<body>
+
+<nav>
+  <div class="wrap nav-inner">
+    <a href="#" class="brand">
+      <span class="brand-dot"></span>
+      cue
+    </a>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#agents">Agents</a>
+      <a href="#quickstart">Quickstart</a>
+      <a href="#api">API</a>
+      <a href="https://github.com/Suryanandx/cue" target="_blank" rel="noopener" class="nav-cta">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<main>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="wrap">
+      <div class="hero-meta">
+        <span class="pill"><span class="live-dot"></span>v0.1 · alpha</span>
+        <span>Open source · Apache-2.0</span>
+        <span>Mac · Win soon · Linux community</span>
+      </div>
+      <h1 class="headline">
+        The open-source<br>
+        meeting assistant.<br>
+        <em>Whispers smart, runs local.</em>
+      </h1>
+      <p class="hero-sub">
+        Cluely-class overlay you actually own. Stealth window, agent-driven answers,
+        Ollama or OpenRouter for inference, Coqui voice cloning, all under a
+        documented HTTP daemon you can script. Your model, your data, your prompts.
+      </p>
+      <div class="hero-actions">
+        <div class="install">
+          <span class="prompt">$</span>pip install cue
+        </div>
+        <a href="https://github.com/Suryanandx/cue" target="_blank" rel="noopener" class="btn-primary">
+          GitHub →
+        </a>
+      </div>
+
+      <div class="hero-stats">
+        <div class="stat">
+          <div class="stat-num">2<span class="small">providers</span></div>
+          <div class="stat-label">Ollama + OpenRouter</div>
+        </div>
+        <div class="stat">
+          <div class="stat-num">5<span class="small">agents</span></div>
+          <div class="stat-label">Built-in, all TOML</div>
+        </div>
+        <div class="stat">
+          <div class="stat-num">100<span class="small">%</span></div>
+          <div class="stat-label">Local by default</div>
+        </div>
+        <div class="stat">
+          <div class="stat-num">0<span class="small">tax</span></div>
+          <div class="stat-label">Apache-2.0 forever</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section class="section" id="features">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="eyebrow"><span class="num">01 ·</span>What it does</div>
+        <div>
+          <h2 class="title">Cluely's feature set, <em>your control plane.</em></h2>
+          <p class="sub">
+            Same overlay UX as the closed-source incumbent. None of the lock-in.
+            Every input and every output stays on your machine unless you wire it
+            otherwise.
+          </p>
+        </div>
+      </div>
+
+      <div class="features">
+        <div class="feature">
+          <span class="num">/ 01 Stealth</span>
+          <h3>Invisible to screen capture.</h3>
+          <p>Electron's <code>setContentProtection(true)</code> hides the overlay from screen-record and screen-share APIs on macOS and Windows. Always-on-top, click-through optional.</p>
+        </div>
+        <div class="feature">
+          <span class="num">/ 02 STT + TTS</span>
+          <h3>Local audio, your voice.</h3>
+          <p>Speech-to-speech pipeline modeled on <code>huggingface/speech-to-speech</code>. Optional Coqui XTTS-v2 voice cloning so the AI whispers in <em>your</em> voice through your earpiece.</p>
+        </div>
+        <div class="feature">
+          <span class="num">/ 03 Two providers</span>
+          <h3>Ollama + OpenRouter, side by side.</h3>
+          <p>Per-agent model + fallback chain. Run interview-coding on Sonnet, run notetaker on local Llama. Switch at any time. <code>cue model list</code>.</p>
+        </div>
+        <div class="feature">
+          <span class="num">/ 04 Agents</span>
+          <h3>Every agent is a TOML file.</h3>
+          <p>System prompt, model, hotkey, KB scope. Five built-ins ship; create more with <code>cue agent new</code>. Hot-swap mid-call via <code>⌘1-5</code>.</p>
+        </div>
+        <div class="feature">
+          <span class="num">/ 05 Daemon</span>
+          <h3>HTTP API under everything.</h3>
+          <p>FastAPI service with OpenAPI docs at <code>/docs</code>. The Electron overlay and CLI are both clients. Build your own — Raycast, OBS, mobile.</p>
+        </div>
+        <div class="feature">
+          <span class="num">/ 06 CLI-first</span>
+          <h3>Run interviews from the terminal.</h3>
+          <p><code>cue ask</code>, <code>cue practice</code>, <code>cue session record</code>, <code>cue model benchmark</code>. Power users skip the GUI entirely.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- AGENTS -->
+  <section class="section" id="agents">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="eyebrow"><span class="num">02 ·</span>Agents</div>
+        <div>
+          <h2 class="title">Five agents <em>shipped on day one.</em></h2>
+          <p class="sub">
+            Each one is a TOML file in <code>cue/agents/builtins/</code>. Override
+            any of them or write your own. Drop them in <code>~/.cue/agents/</code> and
+            they show up immediately.
+          </p>
+        </div>
+      </div>
+
+      <div class="agents">
+        <div class="agents-row">
+          <div class="a-num">001</div>
+          <div class="a-name"><em>Interview ·</em> Behavioral</div>
+          <div class="a-desc">STAR-format answers tuned to your resume and the job description. Mirrors your tone. Never invents.</div>
+          <div class="a-model">claude-3.5-sonnet</div>
+        </div>
+        <div class="agents-row">
+          <div class="a-num">002</div>
+          <div class="a-name"><em>Interview ·</em> Coding</div>
+          <div class="a-desc">Brute force, then optimal, with code, edge cases, and complexity analysis. Restates the problem first.</div>
+          <div class="a-model">claude-3.5-sonnet</div>
+        </div>
+        <div class="agents-row">
+          <div class="a-num">003</div>
+          <div class="a-name"><em>Interview ·</em> System Design</div>
+          <div class="a-desc">Layered architecture: clarify, capacity, diagram, walkthrough, two real bottlenecks, reliability.</div>
+          <div class="a-model">claude-3.5-sonnet</div>
+        </div>
+        <div class="agents-row">
+          <div class="a-num">004</div>
+          <div class="a-name"><em>Sales ·</em> Discovery</div>
+          <div class="a-desc">MEDDPICC nudges, the next discovery question, what not to say. Three bullets max. No filler.</div>
+          <div class="a-model">gpt-4o-mini</div>
+        </div>
+        <div class="agents-row">
+          <div class="a-num">005</div>
+          <div class="a-name"><em>Meeting ·</em> Notetaker</div>
+          <div class="a-desc">Silent listener. After the call: summary, decisions, action items with owners, open questions, notes.</div>
+          <div class="a-model">gpt-4o-mini · llama3:8b</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- QUICKSTART -->
+  <section class="section" id="quickstart">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="eyebrow"><span class="num">03 ·</span>Quickstart</div>
+        <div>
+          <h2 class="title">Install to <em>first answer in two minutes.</em></h2>
+        </div>
+      </div>
+
+      <div class="quickstart-grid">
+        <ol class="qs-list">
+          <li>
+            <div>
+              <h4>Install</h4>
+              <p><code>pip install cue</code> for daemon + CLI. Add <code>cue[stt,tts,kb]</code> later for the heavier optional engines.</p>
+            </div>
+          </li>
+          <li>
+            <div>
+              <h4>Configure</h4>
+              <p><code>cue init</code> writes <code>~/.cue/config.toml</code>. Drop in your OpenRouter key or skip and run Ollama-only.</p>
+            </div>
+          </li>
+          <li>
+            <div>
+              <h4>Ask</h4>
+              <p><code>cue ask "talk about a hard project"</code> streams an answer through the default agent.</p>
+            </div>
+          </li>
+          <li>
+            <div>
+              <h4>Daemon up</h4>
+              <p><code>cue daemon start</code> exposes the full pipeline at <code>127.0.0.1:7821</code>. Visit <code>/docs</code> for OpenAPI.</p>
+            </div>
+          </li>
+          <li>
+            <div>
+              <h4>Overlay</h4>
+              <p>Run <code>cue start</code> (or <code>cd electron && npm start</code>) for the stealth Cluely-style overlay.</p>
+            </div>
+          </li>
+        </ol>
+
+        <div class="code-card">
+          <div class="bar">terminal</div>
+<pre><span class="p">$</span> pip install cue
+<span class="p">$</span> cue init
+<span class="c">✓ Cue initialised
+  config:   ~/.cue/config.toml
+  agents:   5 built-in
+  daemon:   127.0.0.1:7821</span>
+
+<span class="p">$</span> cue ask <span class="c">"explain CAP theorem"</span>
+<span class="c">Interview · Behavioral · openrouter:claude-3.5-sonnet</span>
+The CAP theorem says that in any distributed
+system you can pick at most two of...
+
+<span class="p">$</span> cue daemon start
+<span class="c">✓ daemon started in background</span>
+
+<span class="p">$</span> cue agent list
+<span class="c">interview-behavioral · interview-coding · ...</span>
+
+<span class="p">$</span> cue start  <span class="c"># launches GUI overlay</span></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- API -->
+  <section class="section" id="api">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="eyebrow"><span class="num">04 ·</span>HTTP API</div>
+        <div>
+          <h2 class="title">A daemon under <em>everything.</em></h2>
+          <p class="sub">
+            The GUI calls these endpoints. The CLI calls these endpoints. Anyone
+            can. OpenAPI lives at <code>http://127.0.0.1:7821/docs</code>.
+          </p>
+        </div>
+      </div>
+
+      <table class="endpoints">
+        <thead>
+          <tr><th>Method</th><th>Path</th><th>Purpose</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="method">POST</span></td><td><code>/v1/chat</code></td><td>SSE token stream through any agent + model</td></tr>
+          <tr><td><span class="method">GET</span></td><td><code>/v1/agents</code></td><td>List all agents (built-in + user)</td></tr>
+          <tr><td><span class="method">POST</span></td><td><code>/v1/agents/:slug</code></td><td>Create or update an agent</td></tr>
+          <tr><td><span class="method">DELETE</span></td><td><code>/v1/agents/:slug</code></td><td>Remove a user agent</td></tr>
+          <tr><td><span class="method">GET</span></td><td><code>/v1/models</code></td><td>Both Ollama + OpenRouter catalogues, side by side</td></tr>
+          <tr><td><span class="method">POST</span></td><td><code>/v1/stt</code></td><td>Audio in → transcript chunks (0.2)</td></tr>
+          <tr><td><span class="method">POST</span></td><td><code>/v1/tts</code></td><td>Text in → audio out (0.2)</td></tr>
+          <tr><td><span class="method">GET</span></td><td><code>/v1/sessions</code></td><td>Past session transcripts + answers</td></tr>
+          <tr><td><span class="method">GET</span></td><td><code>/v1/health</code></td><td>Daemon + provider status</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-col">
+        <div class="foot-mark">cue<span class="pop">.</span></div>
+        <p style="margin-top: 14px; max-width: 320px;">
+          Open-source meeting assistant. Part of the Valthrax studio.
+        </p>
+      </div>
+      <div class="foot-col">
+        <h4>Project</h4>
+        <a href="https://github.com/Suryanandx/cue" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/Suryanandx/cue/releases" target="_blank" rel="noopener">Releases</a>
+        <a href="https://github.com/Suryanandx/cue/issues" target="_blank" rel="noopener">Issues</a>
+        <a href="https://pypi.org/project/cue/" target="_blank" rel="noopener">PyPI</a>
+      </div>
+      <div class="foot-col">
+        <h4>Studio</h4>
+        <a href="https://valthrax.com" target="_blank" rel="noopener">Valthrax</a>
+        <a href="https://pressmark.valthrax.com" target="_blank" rel="noopener">Pressmark</a>
+        <a href="https://switchboard.valthrax.com" target="_blank" rel="noopener">Switchboard</a>
+        <a href="https://murmur.valthrax.com" target="_blank" rel="noopener">Murmur</a>
+      </div>
+      <div class="foot-col">
+        <h4>Maker</h4>
+        <a href="https://suryanand.com" target="_blank" rel="noopener">suryanand.com</a>
+        <a href="https://github.com/Suryanandx" target="_blank" rel="noopener">@Suryanandx</a>
+        <a href="mailto:work@suryanand.com">Email</a>
+      </div>
+    </div>
+    <div class="foot-bot">
+      <span>© 2026 Suryanand Sunil · Apache-2.0</span>
+      <span>Built in public</span>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
