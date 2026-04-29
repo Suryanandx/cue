@@ -1,4 +1,18 @@
-mermaid.initialize({ startOnLoad:false, theme:'dark', securityLevel:'loose' });
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'dark',
+  securityLevel: 'loose',
+  suppressErrorRendering: true,
+  flowchart: { htmlLabels: true, curve: 'basis' },
+  themeVariables: {
+    darkMode: true,
+    primaryColor: '#2d3748',
+    primaryTextColor: '#e2e8f0',
+    lineColor: '#94a3b8',
+    secondaryColor: '#1e293b',
+    tertiaryColor: '#0f172a'
+  }
+});
 
 // Path helper for renderer (no Node path module in renderer context)
 const path = { basename: s => (s || '').split(/[\\/]/).pop() };
@@ -693,21 +707,30 @@ async function sendMsg(overrideText) {
   body.innerHTML = dots();
 
   let full = '', first = true;
+  let streamRaf = null;
 
   await window.ollama.chat(
     msgs,
     chunk => {
       if (first) { body.innerHTML = ''; first = false; }
       full += chunk;
-      body.innerHTML = render(full, true);
-      E.messages.scrollTop = E.messages.scrollHeight;
+      if (streamRaf) cancelAnimationFrame(streamRaf);
+      streamRaf = requestAnimationFrame(() => {
+        streamRaf = null;
+        body.innerHTML = render(full, true);
+        E.messages.scrollTop = E.messages.scrollHeight;
+      });
     },
     async () => {
+      if (streamRaf) {
+        cancelAnimationFrame(streamRaf);
+        streamRaf = null;
+      }
       body.innerHTML = render(full, false);
       E.messages.scrollTop = E.messages.scrollHeight;
       S.busy = false;
       E.btnSend.disabled = false;
-      setTimeout(renderMermaid, 50);
+      requestAnimationFrame(() => setTimeout(renderMermaid, 16));
 
       // Persist AI response
       window.chatStore.addMessage(chatId, 'assistant', full, agentKey);
@@ -1239,6 +1262,7 @@ const LANG_META = {
   mysql:      { label: 'SQL', icon: 'SQL', cls: 'lang-sql' },
   postgresql: { label: 'SQL', icon: 'SQL', cls: 'lang-sql' },
   postgres:   { label: 'SQL', icon: 'SQL', cls: 'lang-sql' },
+  pgsql:      { label: 'SQL', icon: 'SQL', cls: 'lang-sql' },
   mongodb:    { label: 'MongoDB', icon: 'MG', cls: 'lang-mongodb' },
   mongo:      { label: 'MongoDB', icon: 'MG', cls: 'lang-mongodb' },
   bson:       { label: 'MongoDB', icon: 'MG', cls: 'lang-mongodb' },
@@ -1246,10 +1270,91 @@ const LANG_META = {
   typescript: { label: 'TypeScript', icon: 'TS', cls: 'lang-typescript' },
   ts:         { label: 'TypeScript', icon: 'TS', cls: 'lang-typescript' },
   java:       { label: 'Java', icon: 'JV', cls: 'lang-java' },
+  md:         { label: 'Markdown', icon: 'MD', cls: 'lang-markdown' },
+  markdown:   { label: 'Markdown', icon: 'MD', cls: 'lang-markdown' },
+  bash:       { label: 'Bash', icon: 'SH', cls: 'lang-bash' },
+  sh:         { label: 'Shell', icon: 'SH', cls: 'lang-bash' },
+  shell:      { label: 'Shell', icon: 'SH', cls: 'lang-bash' },
+  zsh:        { label: 'Zsh', icon: 'SH', cls: 'lang-bash' },
+  json:       { label: 'JSON', icon: '{}', cls: 'lang-json' },
+  yaml:       { label: 'YAML', icon: 'Y', cls: 'lang-yaml' },
+  yml:        { label: 'YAML', icon: 'Y', cls: 'lang-yaml' },
+  go:         { label: 'Go', icon: 'GO', cls: 'lang-go' },
+  rust:       { label: 'Rust', icon: 'RS', cls: 'lang-rust' },
+  rs:         { label: 'Rust', icon: 'RS', cls: 'lang-rust' },
+  cpp:        { label: 'C++', icon: 'C+', cls: 'lang-cpp' },
+  c:          { label: 'C', icon: 'C', cls: 'lang-c' },
+  css:        { label: 'CSS', icon: 'CSS', cls: 'lang-css' },
+  html:       { label: 'HTML', icon: 'H', cls: 'lang-html' },
+  xml:        { label: 'XML', icon: 'X', cls: 'lang-xml' },
 };
 
 function getLangMeta(lang) {
   return LANG_META[lang] || { label: lang || 'Code', icon: '◈', cls: 'lang-default' };
+}
+
+/** Map fenced lang tags → highlight.js grammar ids (subset bundled in highlight.min.js). */
+const HLJS_LANG_ALIASES = {
+  js: 'javascript',
+  javascript: 'javascript',
+  ts: 'typescript',
+  typescript: 'typescript',
+  py: 'python',
+  python: 'python',
+  md: 'markdown',
+  markdown: 'markdown',
+  bash: 'bash',
+  sh: 'bash',
+  shell: 'bash',
+  zsh: 'bash',
+  json: 'json',
+  yaml: 'yaml',
+  yml: 'yaml',
+  sql: 'sql',
+  mysql: 'sql',
+  pgsql: 'sql',
+  postgres: 'sql',
+  postgresql: 'sql',
+  go: 'go',
+  rust: 'rust',
+  rs: 'rust',
+  java: 'java',
+  cpp: 'cpp',
+  cxx: 'cpp',
+  c: 'c',
+  css: 'css',
+  scss: 'scss',
+  html: 'xml',
+  xml: 'xml',
+  jsx: 'javascript',
+  tsx: 'typescript'
+};
+
+function normalizeHljsLang(lang) {
+  const k = String(lang || '').toLowerCase().trim();
+  return HLJS_LANG_ALIASES[k] || k || '';
+}
+
+/**
+ * Syntax-highlight raw source for chat code blocks (trusted assistant output).
+ * Falls back to escaped plain text if highlight.js is unavailable or fails.
+ */
+function highlightCode(raw, lang) {
+  const safePlain = x(raw);
+  if (typeof window === 'undefined' || !window.hljs) return safePlain;
+  const L = normalizeHljsLang(lang);
+  try {
+    if (L && window.hljs.getLanguage(L)) {
+      return window.hljs.highlight(raw, { language: L, ignoreIllegals: true }).value;
+    }
+    const common = [
+      'javascript', 'typescript', 'python', 'json', 'bash', 'sql',
+      'markdown', 'java', 'go', 'rust', 'css', 'xml', 'yaml'
+    ];
+    return window.hljs.highlightAuto(raw, common).value;
+  } catch (_) {
+    return safePlain;
+  }
 }
 
 let _copyTimer = null;
@@ -1271,6 +1376,7 @@ function inlineMd(text) {
   });
 
   let out = x(tokenized);
+  out = out.replace(/!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g, '<img class="md-img" src="$2" alt="$1" loading="lazy" referrerpolicy="no-referrer">');
   out = out.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
   out = out.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
   out = out.replace(/__([^_]+)__/g, '<strong>$1</strong>');
@@ -1329,7 +1435,7 @@ function render(text, isStreaming) {
     let t = '<table><thead><tr>' + head.map(c => '<th>' + inlineMd(c) + '</th>').join('') + '</tr></thead><tbody>';
     t += bodyRows.map(r => '<tr>' + r.map(c => '<td>' + inlineMd(c) + '</td>').join('') + '</tr>').join('');
     t += '</tbody></table>';
-    html.push(t);
+    html.push('<div class="md-table-wrap">' + t + '</div>');
     tableRows = [];
   };
 
@@ -1404,17 +1510,20 @@ function render(text, isStreaming) {
   flushQuote();
   flushTable();
   out = html.join('');
-  out = out.replace(/\x00B(\d+)\x00/g, (_,i) => {
-    const b = blocks[parseInt(i)];
+  out = out.replace(/\x00B(\d+)\x00/g, (_, i) => {
+    const b = blocks[parseInt(i, 10)];
     const meta = getLangMeta(b.lang);
     const safeCode = x(b.code);
-    const copyId = 'cp-' + Math.random().toString(36).slice(2,9);
+    const copyAttr = safeCode.replace(/"/g, '&quot;');
+    const copyId = 'cp-' + Math.random().toString(36).slice(2, 9);
     if (b.lang === 'mermaid') {
-      const canvasId = 'mm-' + Math.random().toString(36).slice(2,9);
-      // Always wrap in mermaid container; renderMermaid() will try to render it
-      return `<div class="code-block ${meta.cls}"><div class="code-header"><span class="lang-label"><span class="lang-icon">${meta.icon}</span>${meta.label}</span><div class="code-actions"><button type="button" class="copy-btn" id="${copyId}" data-code="${safeCode.replace(/"/g,'&quot;')}">copy</button></div></div><div class="mermaid-wrap"><div class="mermaid-toolbar"><button type="button" class="diagram-btn" data-diagram-canvas="${canvasId}" data-diagram-delta="-0.1">−</button><span class="diagram-zoom" data-zoom-for="${canvasId}">100%</span><button type="button" class="diagram-btn" data-diagram-canvas="${canvasId}" data-diagram-delta="0.1">+</button><button type="button" class="diagram-btn" data-diagram-canvas="${canvasId}" data-diagram-action="reset">reset</button></div><div class="mermaid-canvas" id="${canvasId}" data-zoom="1"><div class="mermaid">${b.code}</div></div></div></div>`;
+      const canvasId = 'mm-' + Math.random().toString(36).slice(2, 9);
+      return `<div class="code-block ${meta.cls}"><div class="code-header"><span class="lang-label"><span class="lang-icon">${meta.icon}</span>${meta.label}</span><div class="code-actions"><button type="button" class="copy-btn" id="${copyId}" data-code="${copyAttr}">copy</button></div></div><div class="mermaid-wrap"><div class="mermaid-toolbar"><button type="button" class="diagram-btn" data-diagram-canvas="${canvasId}" data-diagram-delta="-0.1">−</button><span class="diagram-zoom" data-zoom-for="${canvasId}">100%</span><button type="button" class="diagram-btn" data-diagram-canvas="${canvasId}" data-diagram-delta="0.1">+</button><button type="button" class="diagram-btn" data-diagram-canvas="${canvasId}" data-diagram-action="reset">reset</button></div><div class="mermaid-canvas" id="${canvasId}" data-zoom="1"><div class="mermaid">${b.code}</div></div></div></div>`;
     }
-    return `<div class="code-block ${meta.cls}"><div class="code-header"><span class="lang-label"><span class="lang-icon">${meta.icon}</span>${meta.label}</span><button type="button" class="copy-btn" id="${copyId}" data-code="${safeCode.replace(/"/g,'&quot;')}">copy</button></div><pre><code>${safeCode}</code></pre></div>`;
+    const useHl = !isStreaming && window.hljs;
+    const inner = useHl ? highlightCode(b.code, b.lang) : safeCode;
+    const preCls = useHl ? 'hljs code-pre-highlight' : '';
+    return `<div class="code-block ${meta.cls}"><div class="code-header"><span class="lang-label"><span class="lang-icon">${meta.icon}</span>${meta.label}</span><div class="code-actions"><button type="button" class="copy-btn" id="${copyId}" data-code="${copyAttr}">copy</button></div></div><pre class="${preCls}"><code class="${useHl ? 'hljs' : ''}">${inner}</code></pre></div>`;
   });
   return out;
 }
@@ -1480,30 +1589,45 @@ function bindDiagramControls(container) {
   }, { passive: false });
 }
 
+let _mermaidRaf = null;
 function renderMermaid() {
-  document.querySelectorAll('.mermaid:not([data-rendered])').forEach((el,i)=>{
-    const def=el.textContent.trim(); if(!def) return;
-    el.dataset.rendered='1';
-    el.innerHTML=''; el.style.minHeight='60px';
-    mermaid.render('mg'+Date.now()+i, def)
-      .then(({svg})=>{
-        el.innerHTML=svg; el.style.minHeight='';
-        const s=el.querySelector('svg');
-        if(s){
+  if (_mermaidRaf) cancelAnimationFrame(_mermaidRaf);
+  _mermaidRaf = requestAnimationFrame(() => {
+    _mermaidRaf = null;
+    renderMermaidNow();
+  });
+}
+
+function renderMermaidNow() {
+  document.querySelectorAll('.mermaid:not([data-rendered])').forEach((el, i) => {
+    const def = el.textContent.trim();
+    if (!def) return;
+    el.dataset.rendered = '1';
+    el.innerHTML = '';
+    el.style.minHeight = '60px';
+    const rid = 'mg-' + Date.now() + '-' + i + '-' + Math.random().toString(36).slice(2, 8);
+    mermaid.render(rid, def)
+      .then(({ svg }) => {
+        el.innerHTML = svg;
+        el.style.minHeight = '';
+        const s = el.querySelector('svg');
+        if (s) {
           s.removeAttribute('height');
-          s.style.maxWidth='none';
-          s.style.transformOrigin='top left';
+          s.style.maxWidth = 'none';
+          s.style.transformOrigin = 'top left';
         }
         const wrap = el.closest('.mermaid-wrap');
         if (wrap) bindDiagramControls(wrap);
         const canvas = el.closest('.mermaid-canvas');
         if (canvas) setDiagramZoom(canvas.id, Number(canvas.dataset.zoom || '1'));
       })
-      .catch(err=>{
-        // If streaming, just leave blank (will retry next frame)
-        if (S.busy) { delete el.dataset.rendered; return; }
-        el.innerHTML=`<pre style="font-size:10px;color:var(--red);white-space:pre-wrap">Diagram error:\n${x(err.message)}\n\n${x(def)}</pre>`;
-        el.style.minHeight='';
+      .catch(err => {
+        if (S.busy) {
+          delete el.dataset.rendered;
+          return;
+        }
+        el.innerHTML = `<pre class="mermaid-error">${x(err.message)}\n\n${x(def)}</pre>`;
+        el.style.minHeight = '';
       });
   });
 }
